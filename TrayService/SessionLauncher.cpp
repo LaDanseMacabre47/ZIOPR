@@ -40,7 +40,7 @@ void LaunchAppInSession(DWORD sessionId)
     wcscat_s(szPath, L"TrayApp.exe");
 
     wchar_t szCmdLine[MAX_PATH + 32]{};
-    _snwprintf(szCmdLine, MAX_PATH + 32, L"\"%s\" --hidden", szPath);
+    wsprintfW(szCmdLine, L"\"%s\" --hidden", szPath);
 
     STARTUPINFOW si{};
     si.cb          = sizeof(si);
