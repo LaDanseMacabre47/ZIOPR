@@ -1,5 +1,5 @@
 #include "ServiceMain.h"
-#include "ServiceMain.h"
+#include "compat.h"
 #include <cstdio>
 
 static BOOL InstallService()
