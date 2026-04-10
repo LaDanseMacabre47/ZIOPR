@@ -19,7 +19,7 @@ add_executable(TrayService
 add_dependencies(TrayService rpc_generated)
 
 target_include_directories(TrayService PRIVATE "${RPC_GEN_DIR}")
-target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE)
+target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(TrayService PRIVATE rpcrt4 wtsapi32 advapi32 userenv)
 
 set_property(TARGET TrayService PROPERTY CXX_STANDARD 20)
