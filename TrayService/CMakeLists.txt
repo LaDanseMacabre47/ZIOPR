@@ -18,10 +18,7 @@ add_executable(TrayService
 
 add_dependencies(TrayService rpc_generated)
 
-target_include_directories(TrayService PRIVATE
-    "${RPC_GEN_DIR}"
-    "${CMAKE_SOURCE_DIR}/common"
-)
+target_include_directories(TrayService PRIVATE "${RPC_GEN_DIR}")
 target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE)
 target_link_libraries(TrayService PRIVATE rpcrt4 wtsapi32 advapi32 userenv)
 

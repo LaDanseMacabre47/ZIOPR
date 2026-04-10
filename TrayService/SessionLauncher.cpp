@@ -1,7 +1,6 @@
 #include "SessionLauncher.h"
 #include "SessionLauncher.h"
 #include "ServiceMain.h"
-#include "compat.h"
 
 #include <wtsapi32.h>
 #include <userenv.h>

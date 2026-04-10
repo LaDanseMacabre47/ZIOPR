@@ -2,7 +2,6 @@
 #include "TrayApp.h"
 #include "RpcClient.h"
 #include "resource.h"
-#include "compat.h"
 
 #include <tlhelp32.h>
 #include <wtsapi32.h>

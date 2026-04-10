@@ -17,10 +17,7 @@ add_executable(TrayApp WIN32
 
 add_dependencies(TrayApp rpc_generated)
 
-target_include_directories(TrayApp PRIVATE
-    "${RPC_GEN_DIR}"
-    "${CMAKE_SOURCE_DIR}/common"
-)
+target_include_directories(TrayApp PRIVATE "${RPC_GEN_DIR}")
 target_compile_definitions(TrayApp PRIVATE UNICODE _UNICODE)
 target_link_libraries(TrayApp PRIVATE rpcrt4 wtsapi32 advapi32)
 
