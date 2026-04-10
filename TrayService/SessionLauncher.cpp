@@ -1,4 +1,5 @@
 #include "SessionLauncher.h"
+#include "SessionLauncher.h"
 #include "ServiceMain.h"
 
 #include <wtsapi32.h>
@@ -39,7 +40,7 @@ void LaunchAppInSession(DWORD sessionId)
     wcscat_s(szPath, L"TrayApp.exe");
 
     wchar_t szCmdLine[MAX_PATH + 32]{};
-    swprintf_s(szCmdLine, L"\"%s\" --hidden", szPath);
+    wsprintfW(szCmdLine, L"\"%s\" --hidden", szPath);
 
     STARTUPINFOW si{};
     si.cb          = sizeof(si);

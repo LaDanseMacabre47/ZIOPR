@@ -1,4 +1,5 @@
 #include "TrayApp.h"
+#include "TrayApp.h"
 #include "RpcClient.h"
 #include "resource.h"
 
@@ -85,8 +86,8 @@ void RemoveTrayIcon(HWND hWnd)
 void ShowTrayContextMenu(HWND hWnd)
 {
     HMENU hMenu = CreatePopupMenu();
-    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Открыть");
-    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_EXIT, L"Выход");
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN, L"Open");
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_EXIT, L"Exit");
 
     POINT pt;
     GetCursorPos(&pt);

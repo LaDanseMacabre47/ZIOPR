@@ -1,9 +1,13 @@
-cmake_minimum_required(VERSION 3.8)
-
-set(RPC_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/../rpc_generated")
-
 set(RPC_SERVER_STUB "${RPC_GEN_DIR}/StopService_s.c")
-set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED TRUE)
+if(NOT MSVC)
+    set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED FALSE)
+    set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES
+        COMPILE_DEFINITIONS "_M_AMD64"
+        COMPILE_OPTIONS "-w"
+    )
+else()
+    set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED TRUE)
+endif()
 
 add_executable(TrayService
     "main.cpp"
@@ -19,8 +23,12 @@ add_executable(TrayService
 add_dependencies(TrayService rpc_generated)
 
 target_include_directories(TrayService PRIVATE "${RPC_GEN_DIR}")
-target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE)
+target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(TrayService PRIVATE rpcrt4 wtsapi32 advapi32 userenv)
+
+if(NOT MSVC)
+    target_link_options(TrayService PRIVATE -municode)
+endif()
 
 set_property(TARGET TrayService PROPERTY CXX_STANDARD 20)
 
