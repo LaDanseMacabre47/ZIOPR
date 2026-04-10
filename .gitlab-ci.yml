@@ -5,15 +5,10 @@ build:
   stage: build
   tags:
     - bks2301
-  before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq cmake make g++-mingw-w64-x86-64 mingw-w64-x86-64-dev
   script:
-    - mkdir -p build
-    - cd build
-    - cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/mingw-w64-toolchain.cmake -DCMAKE_BUILD_TYPE=Release
-    - cmake --build . -- -j4
+    - cmake --preset x64-debug
+    - cmake --build out/build/x64-debug
   artifacts:
     paths:
-      - build/bin/
+      - out/build/x64-debug/bin/
     expire_in: 1 week

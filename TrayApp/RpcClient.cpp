@@ -1,4 +1,5 @@
 #include "RpcClient.h"
+#include "RpcClient.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -29,7 +30,6 @@ void RpcStopServiceCall()
     if (status != RPC_S_OK)
         return;
 
-#if defined(_MSC_VER)
     RpcTryExcept
     {
         ::RpcStopService();
@@ -38,9 +38,6 @@ void RpcStopServiceCall()
     {
     }
     RpcEndExcept
-#else
-    ::RpcStopService();
-#endif
 
     RpcBindingFree(&StopService_IfHandle);
 }
