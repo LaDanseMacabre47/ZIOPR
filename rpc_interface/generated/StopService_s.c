@@ -163,7 +163,7 @@ extern const MIDL_STUB_DESC StopService_StubDesc;
 #endif
 
 
-static const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatString =
+const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatString =
     {
         0,
         {
@@ -190,7 +190,7 @@ static const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatStr
         }
     };
 
-static const StopService_MIDL_TYPE_FORMAT_STRING StopService__MIDL_TypeFormatString =
+const StopService_MIDL_TYPE_FORMAT_STRING StopService__MIDL_TypeFormatString =
     {
         0,
         {
@@ -209,7 +209,7 @@ static const unsigned short StopService_FormatStringOffsetTable[] =
 #ifdef __cplusplus
 namespace {
 #endif
-static const MIDL_STUB_DESC StopService_StubDesc = 
+const MIDL_STUB_DESC StopService_StubDesc = 
     {
     (void *)& StopService___RpcServerInterface,
     MIDL_user_allocate,
@@ -241,7 +241,7 @@ static const RPC_DISPATCH_FUNCTION StopService_table[] =
     NdrServerCall2,
     0
     };
-static const RPC_DISPATCH_TABLE StopService_v1_0_DispatchTable = 
+const RPC_DISPATCH_TABLE StopService_v1_0_DispatchTable = 
     {
     1,
     (RPC_DISPATCH_FUNCTION*)StopService_table
@@ -252,7 +252,7 @@ static const SERVER_ROUTINE StopService_ServerRoutineTable[] =
     (SERVER_ROUTINE)RpcStopService
     };
 
-static const MIDL_SERVER_INFO StopService_ServerInfo = 
+const MIDL_SERVER_INFO StopService_ServerInfo = 
     {
     &StopService_StubDesc,
     StopService_ServerRoutineTable,

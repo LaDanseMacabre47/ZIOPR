@@ -179,7 +179,7 @@ void RpcStopService( void)
 #endif
 
 
-static const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatString =
+const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatString =
     {
         0,
         {
@@ -206,7 +206,7 @@ static const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatStr
         }
     };
 
-static const StopService_MIDL_TYPE_FORMAT_STRING StopService__MIDL_TypeFormatString =
+const StopService_MIDL_TYPE_FORMAT_STRING StopService__MIDL_TypeFormatString =
     {
         0,
         {
@@ -225,7 +225,7 @@ static const unsigned short StopService_FormatStringOffsetTable[] =
 #ifdef __cplusplus
 namespace {
 #endif
-static const MIDL_STUB_DESC StopService_StubDesc = 
+const MIDL_STUB_DESC StopService_StubDesc = 
     {
     (void *)& StopService___RpcClientInterface,
     MIDL_user_allocate,

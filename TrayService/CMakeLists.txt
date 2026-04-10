@@ -1,7 +1,10 @@
 set(RPC_SERVER_STUB "${RPC_GEN_DIR}/StopService_s.c")
 if(NOT MSVC)
     set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED FALSE)
-    set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES COMPILE_DEFINITIONS "_M_AMD64")
+    set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES
+        COMPILE_DEFINITIONS "_M_AMD64"
+        COMPILE_OPTIONS "-w"
+    )
 else()
     set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED TRUE)
 endif()
