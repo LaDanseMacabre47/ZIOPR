@@ -1,0 +1,12 @@
+#include "resource.h"
+#include <windows.h>
+
+IDI_TRAYAPP ICON "app.ico"
+
+IDR_MAINMENU MENU
+BEGIN
+    POPUP "&Файл"
+    BEGIN
+        MENUITEM "Выход", IDM_FILE_EXIT
+    END
+END

@@ -1,0 +1,30 @@
+# Build output
+out/
+build/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Old template project
+CMakeProject1/
+
+# Generated RPC stubs (built during CI)
+rpc_generated/
+
+# Logs
+*.log
+
+# Binaries
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.lib
+*.exp

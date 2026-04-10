@@ -1,0 +1,6 @@
+[
+    implicit_handle(handle_t StopService_IfHandle)
+]
+interface StopService
+{
+}
