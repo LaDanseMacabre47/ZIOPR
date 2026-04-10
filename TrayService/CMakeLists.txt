@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.8)
-
-set(RPC_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/../rpc_generated")
-
 set(RPC_SERVER_STUB "${RPC_GEN_DIR}/StopService_s.c")
-set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED TRUE)
+if(NOT MSVC)
+    set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED FALSE)
+else()
+    set_source_files_properties("${RPC_SERVER_STUB}" PROPERTIES GENERATED TRUE)
+endif()
 
 add_executable(TrayService
     "main.cpp"
