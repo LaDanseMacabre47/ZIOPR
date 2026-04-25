@@ -73,7 +73,7 @@ void LaunchAppInSession(DWORD sessionId)
         CloseHandle(pi.hThread);
 
         EnterCriticalSection(&g_csProcesses);
-        g_launchedProcesses.push_back({ pi.hProcess, sessionId });
+        g_launchedProcesses.push_back(pi.hProcess);
         LeaveCriticalSection(&g_csProcesses);
     }
 }
