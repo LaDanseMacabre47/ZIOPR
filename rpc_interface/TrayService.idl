@@ -1,0 +1,27 @@
+[
+    uuid(AABBCCDD-1234-5678-ABCD-1234567890AB),
+    version(1.0)
+]
+interface TrayService
+{
+    long RpcLogin(
+        [in, string] const wchar_t* username,
+        [in, string] const wchar_t* password
+    );
+
+    void RpcLogout();
+
+    long RpcGetCurrentUser(
+        [out] long* authenticated,
+        [out, string] wchar_t** username
+    );
+
+    long RpcGetLicenseStatus(
+        [out] long* hasLicense,
+        [out] __int64* expiryUnixTime
+    );
+
+    long RpcActivateProduct(
+        [in, string] const wchar_t* activationCode
+    );
+}
