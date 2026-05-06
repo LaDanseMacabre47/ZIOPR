@@ -9,36 +9,32 @@
 
 static HANDLE s_hStopEvent = nullptr;
 
-// ---------------------------------------------------------------
-// Вспомогательная проверка п.11:
-// Если тикета нет — останавливаем фоновые задачи и возвращаем ошибку.
-// ---------------------------------------------------------------
 static LONG CheckLicenseTicket()
 {
     if (!GetLicenseManager().HasTicket())
     {
-        // П.11: останавливаем фоновые задачи
         GetLicenseManager().StopBackgroundTasks();
-        return ERROR_LICENSE_QUOTA_EXCEEDED; // используем как "нет лицензии"
+        return ERROR_LICENSE_QUOTA_EXCEEDED;
     }
     return ERROR_SUCCESS;
 }
 
 // ---------------------------------------------------------------
-// Auth методы — не требуют лицензии
+// Все функции принимают explicit handle_t (IDL_handle)
 // ---------------------------------------------------------------
-long RpcLogin(const wchar_t* username, const wchar_t* password)
+
+long RpcLogin(handle_t, const wchar_t* username, const wchar_t* password)
 {
     return GetAuthManager().Login(username, password);
 }
 
-void RpcLogout()
+void RpcLogout(handle_t)
 {
     GetAuthManager().Logout();
     GetLicenseManager().ClearTicket();
 }
 
-long RpcGetCurrentUser(long* authenticated, wchar_t** username)
+long RpcGetCurrentUser(handle_t, long* authenticated, wchar_t** username)
 {
     *authenticated = 0;
     *username = nullptr;
@@ -56,10 +52,7 @@ long RpcGetCurrentUser(long* authenticated, wchar_t** username)
     return 0;
 }
 
-// ---------------------------------------------------------------
-// Лицензионные методы — требуют аутентификации + тикета (п.11)
-// ---------------------------------------------------------------
-long RpcGetLicenseStatus(long* hasLicense, __int64* expiryUnixTime)
+long RpcGetLicenseStatus(handle_t, long* hasLicense, __int64* expiryUnixTime)
 {
     *hasLicense = 0;
     *expiryUnixTime = 0;
@@ -73,10 +66,9 @@ long RpcGetLicenseStatus(long* hasLicense, __int64* expiryUnixTime)
 
     if (r == ERROR_NOT_FOUND)
     {
-        // Лицензия не найдена — п.11: останавливаем фоновые задачи
         GetLicenseManager().StopBackgroundTasks();
         *hasLicense = 0;
-        return ERROR_SUCCESS; // возвращаем SUCCESS но hasLicense=0
+        return ERROR_SUCCESS;
     }
 
     if (r != ERROR_SUCCESS)
@@ -86,7 +78,7 @@ long RpcGetLicenseStatus(long* hasLicense, __int64* expiryUnixTime)
     if (check != ERROR_SUCCESS)
     {
         *hasLicense = 0;
-        return ERROR_SUCCESS; // нет тикета — hasLicense=0
+        return ERROR_SUCCESS;
     }
 
     LONGLONG exp = 0;
@@ -96,9 +88,8 @@ long RpcGetLicenseStatus(long* hasLicense, __int64* expiryUnixTime)
     return 0;
 }
 
-long RpcActivateProduct(const wchar_t* activationCode)
+long RpcActivateProduct(handle_t, const wchar_t* activationCode)
 {
-    // Требуем аутентификацию
     wchar_t user[256]{};
     if (!GetAuthManager().GetCurrentUser(user))
         return ERROR_NOT_AUTHENTICATED;
@@ -106,7 +97,6 @@ long RpcActivateProduct(const wchar_t* activationCode)
     std::wstring tok = GetAuthManager().GetAccessToken();
     LONG r = GetLicenseManager().ActivateProduct(activationCode, tok.c_str());
 
-    // После активации проверяем тикет (п.11)
     if (r == ERROR_SUCCESS)
     {
         LONG check = CheckLicenseTicket();
@@ -115,10 +105,7 @@ long RpcActivateProduct(const wchar_t* activationCode)
     return r;
 }
 
-// ---------------------------------------------------------------
-// Легаси stop
-// ---------------------------------------------------------------
-void RpcStopService()
+void RpcStopService(handle_t)
 {
     if (s_hStopEvent) SetEvent(s_hStopEvent);
 }

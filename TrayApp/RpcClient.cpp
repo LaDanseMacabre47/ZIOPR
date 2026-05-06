@@ -5,31 +5,30 @@
 #include "TrayService.h"
 #include "StopService.h"
 
-static void BindTo(const wchar_t* endpoint, handle_t* phBinding)
+static handle_t CreateBinding(const wchar_t* endpoint)
 {
+    handle_t h = nullptr;
     RPC_WSTR psz = nullptr;
     RpcStringBindingComposeW(nullptr, (RPC_WSTR)L"ncalrpc",
         nullptr, (RPC_WSTR)endpoint, nullptr, &psz);
-    RpcBindingFromStringBindingW(psz, phBinding);
+    RpcBindingFromStringBindingW(psz, &h);
     RpcStringFreeW(&psz);
+    return h;
 }
-
-// mingw не поддерживает __try/__except Ч используем setjmp или просто вызываем напр€мую
-// RPC ошибки будут возвращены как коды возврата функций
 
 long RpcClientLogin(const wchar_t* username, const wchar_t* password)
 {
-    BindTo(L"TrayServiceALPC2", &TrayService_IfHandle);
-    long result = (long)::RpcLogin(username, password);
-    RpcBindingFree(&TrayService_IfHandle);
+    handle_t h = CreateBinding(L"TrayServiceALPC2");
+    long result = (long)::RpcLogin(h, username, password);
+    RpcBindingFree(&h);
     return result;
 }
 
 void RpcClientLogout()
 {
-    BindTo(L"TrayServiceALPC2", &TrayService_IfHandle);
-    ::RpcLogout();
-    RpcBindingFree(&TrayService_IfHandle);
+    handle_t h = CreateBinding(L"TrayServiceALPC2");
+    ::RpcLogout(h);
+    RpcBindingFree(&h);
 }
 
 long RpcClientGetCurrentUser(long* authenticated, wchar_t username[256])
@@ -37,42 +36,41 @@ long RpcClientGetCurrentUser(long* authenticated, wchar_t username[256])
     *authenticated = 0;
     username[0] = L'\0';
 
-    BindTo(L"TrayServiceALPC2", &TrayService_IfHandle);
+    handle_t h = CreateBinding(L"TrayServiceALPC2");
     wchar_t* buf = nullptr;
-    long result = (long)::RpcGetCurrentUser(authenticated, &buf);
+    long result = (long)::RpcGetCurrentUser(h, authenticated, &buf);
 
     if (buf)
     {
         wcsncpy_s(username, 256, buf, _TRUNCATE);
         midl_user_free(buf);
     }
-    RpcBindingFree(&TrayService_IfHandle);
+    RpcBindingFree(&h);
     return result;
 }
 
 long RpcClientGetLicenseStatus(long* hasLicense, __int64* expiryUnixTime)
 {
     *hasLicense = 0; *expiryUnixTime = 0;
-    BindTo(L"TrayServiceALPC2", &TrayService_IfHandle);
-    long result = (long)::RpcGetLicenseStatus(hasLicense, expiryUnixTime);
-    RpcBindingFree(&TrayService_IfHandle);
+    handle_t h = CreateBinding(L"TrayServiceALPC2");
+    long result = (long)::RpcGetLicenseStatus(h, hasLicense, expiryUnixTime);
+    RpcBindingFree(&h);
     return result;
 }
 
 long RpcClientActivateProduct(const wchar_t* activationCode)
 {
-    BindTo(L"TrayServiceALPC2", &TrayService_IfHandle);
-    long result = (long)::RpcActivateProduct(activationCode);
-    RpcBindingFree(&TrayService_IfHandle);
+    handle_t h = CreateBinding(L"TrayServiceALPC2");
+    long result = (long)::RpcActivateProduct(h, activationCode);
+    RpcBindingFree(&h);
     return result;
 }
 
 void RpcStopServiceCall()
 {
-    handle_t hBinding = nullptr;
-    BindTo(L"TrayServiceALPC", &hBinding);
-    ::RpcStopService();
-    RpcBindingFree(&hBinding);
+    handle_t h = CreateBinding(L"TrayServiceALPC");
+    ::RpcStopService(h);
+    RpcBindingFree(&h);
 }
 
 void __RPC_FAR* __RPC_USER midl_user_allocate(size_t len) { return malloc(len); }
