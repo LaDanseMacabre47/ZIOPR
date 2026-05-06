@@ -6,7 +6,7 @@
  /* File created by MIDL compiler version 8.01.0628 */
 /* at Tue Jan 19 06:14:07 2038
  */
-/* Compiler settings for rpc_interface\StopService.idl:
+/* Compiler settings for rpc_interface\TrayService.idl:
     Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.01.0628 
     protocol : dce , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
@@ -32,8 +32,8 @@
 #endif /* __RPCNDR_H_VERSION__ */
 
 
-#ifndef __StopService_h__
-#define __StopService_h__
+#ifndef __TrayService_h__
+#define __TrayService_h__
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 #pragma once
@@ -54,20 +54,39 @@ extern "C"{
 #endif 
 
 
-#ifndef __StopService_INTERFACE_DEFINED__
-#define __StopService_INTERFACE_DEFINED__
+#ifndef __TrayService_INTERFACE_DEFINED__
+#define __TrayService_INTERFACE_DEFINED__
 
-/* interface StopService */
+/* interface TrayService */
 /* [version][uuid] */ 
 
-void RpcStopService( 
+long RpcLogin( 
+    /* [in] */ handle_t IDL_handle,
+    /* [string][in] */ const wchar_t *username,
+    /* [string][in] */ const wchar_t *password);
+
+void RpcLogout( 
     /* [in] */ handle_t IDL_handle);
 
+long RpcGetCurrentUser( 
+    /* [in] */ handle_t IDL_handle,
+    /* [out] */ long *authenticated,
+    /* [string][out] */ wchar_t **username);
+
+long RpcGetLicenseStatus( 
+    /* [in] */ handle_t IDL_handle,
+    /* [out] */ long *hasLicense,
+    /* [out] */ __int64 *expiryUnixTime);
+
+long RpcActivateProduct( 
+    /* [in] */ handle_t IDL_handle,
+    /* [string][in] */ const wchar_t *activationCode);
 
 
-extern RPC_IF_HANDLE StopService_v1_0_c_ifspec;
-extern RPC_IF_HANDLE StopService_v1_0_s_ifspec;
-#endif /* __StopService_INTERFACE_DEFINED__ */
+
+extern RPC_IF_HANDLE TrayService_v1_0_c_ifspec;
+extern RPC_IF_HANDLE TrayService_v1_0_s_ifspec;
+#endif /* __TrayService_INTERFACE_DEFINED__ */
 
 /* Additional Prototypes for ALL interfaces */
 

@@ -3,23 +3,34 @@ stages:
   - installer
 
 # ================================================================
-#  Сборка проекта
+#  Сборка проекта (Linux + mingw-w64 кросс-компиляция)
 # ================================================================
 build:
   stage: build
   tags:
     - bks2301
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq
+        cmake make
+        g++-mingw-w64-x86-64
+        mingw-w64-x86-64-dev
+        mingw-w64-tools
+        nsis
   script:
-    - cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-    - cmake --build build --config Release
+    - mkdir -p build
+    - cd build
+    - cmake ..
+        -DCMAKE_TOOLCHAIN_FILE=../cmake/mingw-w64-toolchain.cmake
+        -DCMAKE_BUILD_TYPE=Release
+    - cmake --build . -- -j4
   artifacts:
     paths:
-      - build/bin/Release/TrayService.exe
-      - build/bin/Release/TrayApp.exe
+      - build/bin/
     expire_in: 1 day
 
 # ================================================================
-#  Сборка инсталлятора NSIS
+#  Сборка инсталлятора NSIS (на том же Linux раннере)
 # ================================================================
 installer:
   stage: installer
@@ -27,17 +38,26 @@ installer:
     - bks2301
   needs:
     - build
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq nsis wget
   script:
-    - mkdir -Force installer\bin
-    - mkdir -Force installer\redist
-    - Copy-Item build\bin\Release\TrayService.exe installer\bin\TrayService.exe
-    - Copy-Item build\bin\Release\TrayApp.exe installer\bin\TrayApp.exe
+    - mkdir -p installer/bin installer/redist
+
+    # Копируем собранные exe
+    - cp build/bin/TrayService.exe installer/bin/TrayService.exe
+    - cp build/bin/TrayApp.exe     installer/bin/TrayApp.exe
+
+    # Скачиваем VC_redist (нужен в инсталлятор даже при mingw сборке)
     - |
-      if (-not (Test-Path "installer\redist\VC_redist.x64.exe")) {
-        Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" `
-          -OutFile "installer\redist\VC_redist.x64.exe"
-      }
-    - '& "C:\Program Files (x86)\NSIS\makensis.exe" /V2 installer\TrayApp.nsi'
+      if [ ! -f installer/redist/VC_redist.x64.exe ]; then
+        wget -q "https://aka.ms/vs/17/release/vc_redist.x64.exe" \
+          -O installer/redist/VC_redist.x64.exe
+      fi
+
+    # Собираем инсталлятор
+    - makensis /V2 installer/TrayApp.nsi
+
   artifacts:
     paths:
       - installer/TrayApp-Setup.exe

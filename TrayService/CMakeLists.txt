@@ -1,12 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
 
-set(RPC_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/../rpc_generated")
-
-set(RPC_SERVER_STUB  "${RPC_GEN_DIR}/TrayService_s.c")
-set(STOP_SERVER_STUB "${RPC_GEN_DIR}/StopService_s.c")
-set_source_files_properties(
-    "${RPC_SERVER_STUB}" "${STOP_SERVER_STUB}"
-    PROPERTIES GENERATED TRUE)
+set(RPC_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../rpc_interface/generated")
 
 add_executable(TrayService
     "main.cpp"
@@ -18,11 +12,9 @@ add_executable(TrayService
     "HttpClient.cpp"     "HttpClient.h"
     "ApiConfig.h"
     "DeviceId.h"
-    "${RPC_SERVER_STUB}"
-    "${STOP_SERVER_STUB}"
+    "${RPC_GEN_DIR}/TrayService_s.c"
+    "${RPC_GEN_DIR}/StopService_s.c"
 )
-
-add_dependencies(TrayService rpc_generated rpc_stop_generated)
 
 target_include_directories(TrayService PRIVATE "${RPC_GEN_DIR}")
 target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE)

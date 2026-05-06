@@ -64,30 +64,33 @@ long RpcGetLicenseStatus(long* hasLicense, __int64* expiryUnixTime)
     *hasLicense = 0;
     *expiryUnixTime = 0;
 
-    // Требуем аутентификацию
     wchar_t user[256]{};
     if (!GetAuthManager().GetCurrentUser(user))
         return ERROR_NOT_AUTHENTICATED;
 
-    // Если тикета нет — пробуем получить
-    LONGLONG exp = 0;
-    if (!GetLicenseManager().GetLicenseInfo(&exp))
+    std::wstring tok = GetAuthManager().GetAccessToken();
+    LONG r = GetLicenseManager().CheckLicense(tok.c_str());
+
+    if (r == ERROR_NOT_FOUND)
     {
-        std::wstring tok = GetAuthManager().GetAccessToken();
-        LONG r = GetLicenseManager().CheckLicense(tok.c_str());
-        if (r != ERROR_SUCCESS)
-        {
-            // П.11: тикета нет — останавливаем фоновые задачи
-            GetLicenseManager().StopBackgroundTasks();
-            return r;
-        }
-        GetLicenseManager().GetLicenseInfo(&exp);
+        // Лицензия не найдена — п.11: останавливаем фоновые задачи
+        GetLicenseManager().StopBackgroundTasks();
+        *hasLicense = 0;
+        return ERROR_SUCCESS; // возвращаем SUCCESS но hasLicense=0
     }
 
-    // П.11: финальная проверка тикета
-    LONG check = CheckLicenseTicket();
-    if (check != ERROR_SUCCESS) return check;
+    if (r != ERROR_SUCCESS)
+        return r;
 
+    LONG check = CheckLicenseTicket();
+    if (check != ERROR_SUCCESS)
+    {
+        *hasLicense = 0;
+        return ERROR_SUCCESS; // нет тикета — hasLicense=0
+    }
+
+    LONGLONG exp = 0;
+    GetLicenseManager().GetLicenseInfo(&exp);
     *hasLicense = 1;
     *expiryUnixTime = (__int64)exp;
     return 0;

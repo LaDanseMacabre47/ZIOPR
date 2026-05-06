@@ -35,6 +35,7 @@ static AppState s_state = AppState::Initializing;
 #define IDC_BTN_LOGIN       3020
 #define IDC_BTN_LOGOUT      3021
 #define IDC_BTN_ACTIVATE    3022
+#define IDC_BTN_SCAN        3023
 
 // ---------------------------------------------------------------
 // Helpers to destroy all child windows
@@ -266,9 +267,20 @@ void ShowActivePanel(HWND hParent, const wchar_t* username, __int64 expiryUnix)
         L"[Antivirus functionality unlocked]",
         20, 140, 420, 22);
 
+    CreateWindowExW(0, L"BUTTON", L"Scan",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        20, 170, 120, 30,
+        hParent, (HMENU)IDC_BTN_SCAN, hInst, nullptr);
+
+    // Метка результата сканирования (пустая по умолчанию)
+    CreateWindowExW(0, L"STATIC", L"",
+        WS_CHILD | WS_VISIBLE | SS_LEFT,
+        155, 177, 260, 20,
+        hParent, (HMENU)IDC_LBL_STATUS + 1, hInst, nullptr);
+
     CreateWindowExW(0, L"BUTTON", L"Logout",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        20, 180, 170, 30,
+        20, 215, 120, 30,
         hParent, (HMENU)IDC_BTN_LOGOUT, hInst, nullptr);
 }
 
@@ -451,6 +463,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             OnActivateClick(hWnd);
             break;
 
+        case IDC_BTN_SCAN:
+        {
+            HWND hResult = GetDlgItem(hWnd, IDC_LBL_STATUS + 1);
+            if (hResult) SetWindowTextW(hResult, L"Scanning...");
+            // Имитация сканирования — через 2 сек показываем результат
+            SetTimer(hWnd, 1, 2000, nullptr);
+            break;
+        }
+
         case IDC_BTN_LOGOUT:
             OnLogoutClick(hWnd);
             break;
@@ -466,7 +487,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         long hasLicense = (long)wParam;
         __int64 expiry = (__int64)lParam;
-        if (hasLicense)
+
+        if (!hasLicense && expiry == (__int64)-1)
+        {
+            // Сессия пропала — требуем повторного логина
+            TransitionToState(hWnd, AppState::NeedLogin, nullptr, 0,
+                L"Session expired. Please log in again.");
+        }
+        else if (hasLicense)
         {
             long auth = 0;
             wchar_t user[256]{};
@@ -475,10 +503,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         else
         {
-            TransitionToState(hWnd, AppState::NeedLicense);
+            // Лицензия истекла — показываем форму активации без логаута
+            TransitionToState(hWnd, AppState::NeedLicense, nullptr, 0,
+                L"License expired. Enter a new activation code.");
         }
         return 0;
     }
+
+    case WM_TIMER:
+        if (wParam == 1)
+        {
+            KillTimer(hWnd, 1);
+            HWND hResult = GetDlgItem(hWnd, IDC_LBL_STATUS + 1);
+            if (hResult) SetWindowTextW(hResult, L"No threats found.");
+        }
+        return 0;
 
     case WM_CREATE:
     {
@@ -497,12 +536,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // Authenticated — check license
             long hasLicense = 0;
             __int64 expiry = 0;
-            RpcClientGetLicenseStatus(&hasLicense, &expiry);
+            long r = RpcClientGetLicenseStatus(&hasLicense, &expiry);
 
-            if (!hasLicense)
-                TransitionToState(hWnd, AppState::NeedLicense);
-            else
+            if (r == 0 && hasLicense)
                 TransitionToState(hWnd, AppState::Active, user, expiry);
+            else
+                TransitionToState(hWnd, AppState::NeedLicense);
         }
         return 0;
     }
@@ -530,22 +569,46 @@ DWORD WINAPI LicensePollThread(LPVOID param)
     HWND hWnd = reinterpret_cast<HWND>(param);
 
     bool lastHadLicense = false;
+    int  sessionTick = 0;  // счётчик для проверки сессии раз в 5 минут
 
     while (IsWindow(hWnd))
     {
-        Sleep(60000);
+        Sleep(10000);  // лицензия каждые 10 секунд
         if (!IsWindow(hWnd)) break;
 
+        // Проверяем сессию раз в 5 минут (30 тиков по 10 сек)
+        sessionTick++;
+        if (sessionTick >= 30)
+        {
+            sessionTick = 0;
+            long auth = 0;
+            wchar_t user[256]{};
+            long authResult = RpcClientGetCurrentUser(&auth, user);
+            if (authResult != 0 || !auth)
+            {
+                PostMessageW(hWnd, WM_LICENSE_CHANGED, 0, (LPARAM)-1);
+                lastHadLicense = false;
+                continue;
+            }
+        }
+
+        // Проверяем лицензию каждые 10 секунд
         long hasLicense = 0;
         __int64 expiry = 0;
         long r = RpcClientGetLicenseStatus(&hasLicense, &expiry);
 
-        bool nowHas = (r == 0 && hasLicense != 0);
-        if (nowHas != lastHadLicense)
+        // r=0 hasLicense=0 — нет лицензии, нужна активация
+        // r=0 hasLicense=1 — лицензия есть
+        // r!=0             — ошибка связи, не меняем состояние
+        if (r == 0)
         {
-            lastHadLicense = nowHas;
-            PostMessageW(hWnd, WM_LICENSE_CHANGED,
-                (WPARAM)hasLicense, (LPARAM)expiry);
+            bool nowHas = (hasLicense != 0);
+            if (nowHas != lastHadLicense)
+            {
+                lastHadLicense = nowHas;
+                PostMessageW(hWnd, WM_LICENSE_CHANGED,
+                    (WPARAM)hasLicense, (LPARAM)expiry);
+            }
         }
     }
     return 0;

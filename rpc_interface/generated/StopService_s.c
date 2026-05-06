@@ -6,8 +6,8 @@
  /* File created by MIDL compiler version 8.01.0628 */
 /* at Tue Jan 19 06:14:07 2038
  */
-/* Compiler settings for C:/Users/danii/source/repos/CMakeProject1/rpc_interface/StopService.idl, C:/Users/danii/source/repos/CMakeProject1/rpc_interface/StopService.acf:
-    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0628 
+/* Compiler settings for rpc_interface\StopService.idl:
+    Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.01.0628 
     protocol : dce , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
     VC __declspec() decoration level: 
@@ -16,7 +16,7 @@
 */
 /* @@MIDL_FILE_HEADING(  ) */
 
-#if defined(_M_AMD64)
+#if !defined(_M_IA64) && !defined(_M_AMD64) && !defined(_ARM_)
 
 
 #pragma warning( disable: 4049 )  /* more than 64k source lines */
@@ -35,7 +35,7 @@
 #include "StopService.h"
 
 #define TYPE_FORMAT_STRING_SIZE   3                                 
-#define PROC_FORMAT_STRING_SIZE   27                                
+#define PROC_FORMAT_STRING_SIZE   29                                
 #define EXPR_FORMAT_STRING_SIZE   1                                 
 #define TRANSMIT_AS_TABLE_SIZE    0            
 #define WIRE_MARSHAL_TABLE_SIZE   0            
@@ -151,7 +151,7 @@ extern const MIDL_STUB_DESC StopService_StubDesc;
 #endif
 
 
-#if !defined(__RPC_WIN64__)
+#if !defined(__RPC_WIN32__)
 #error  Invalid build platform for this stub.
 #endif
 
@@ -163,34 +163,36 @@ extern const MIDL_STUB_DESC StopService_StubDesc;
 #endif
 
 
-const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatString =
+static const StopService_MIDL_PROC_FORMAT_STRING StopService__MIDL_ProcFormatString =
     {
         0,
         {
 
 	/* Procedure RpcStopService */
 
-			0x32,		/* FC_BIND_PRIMITIVE */
+			0x0,		/* 0 */
 			0x48,		/* Old Flags:  */
 /*  2 */	NdrFcLong( 0x0 ),	/* 0 */
 /*  6 */	NdrFcShort( 0x0 ),	/* 0 */
-/*  8 */	NdrFcShort( 0x0 ),	/* x86 Stack size/offset = 0 */
-/* 10 */	NdrFcShort( 0x0 ),	/* 0 */
-/* 12 */	NdrFcShort( 0x0 ),	/* 0 */
-/* 14 */	0x40,		/* Oi2 Flags:  has ext, */
+/*  8 */	NdrFcShort( 0x4 ),	/* x86 Stack size/offset = 4 */
+/* 10 */	0x32,		/* FC_BIND_PRIMITIVE */
 			0x0,		/* 0 */
-/* 16 */	0xa,		/* 10 */
+/* 12 */	NdrFcShort( 0x0 ),	/* x86 Stack size/offset = 0 */
+/* 14 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 16 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 18 */	0x40,		/* Oi2 Flags:  has ext, */
+			0x0,		/* 0 */
+/* 20 */	0x8,		/* 8 */
 			0x1,		/* Ext Flags:  new corr desc, */
-/* 18 */	NdrFcShort( 0x0 ),	/* 0 */
-/* 20 */	NdrFcShort( 0x0 ),	/* 0 */
 /* 22 */	NdrFcShort( 0x0 ),	/* 0 */
 /* 24 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 26 */	NdrFcShort( 0x0 ),	/* 0 */
 
 			0x0
         }
     };
 
-const StopService_MIDL_TYPE_FORMAT_STRING StopService__MIDL_TypeFormatString =
+static const StopService_MIDL_TYPE_FORMAT_STRING StopService__MIDL_TypeFormatString =
     {
         0,
         {
@@ -209,7 +211,7 @@ static const unsigned short StopService_FormatStringOffsetTable[] =
 #ifdef __cplusplus
 namespace {
 #endif
-const MIDL_STUB_DESC StopService_StubDesc = 
+static const MIDL_STUB_DESC StopService_StubDesc = 
     {
     (void *)& StopService___RpcServerInterface,
     MIDL_user_allocate,
@@ -241,7 +243,7 @@ static const RPC_DISPATCH_FUNCTION StopService_table[] =
     NdrServerCall2,
     0
     };
-const RPC_DISPATCH_TABLE StopService_v1_0_DispatchTable = 
+static const RPC_DISPATCH_TABLE StopService_v1_0_DispatchTable = 
     {
     1,
     (RPC_DISPATCH_FUNCTION*)StopService_table
@@ -252,7 +254,7 @@ static const SERVER_ROUTINE StopService_ServerRoutineTable[] =
     (SERVER_ROUTINE)RpcStopService
     };
 
-const MIDL_SERVER_INFO StopService_ServerInfo = 
+static const MIDL_SERVER_INFO StopService_ServerInfo = 
     {
     &StopService_StubDesc,
     StopService_ServerRoutineTable,
@@ -267,5 +269,5 @@ const MIDL_SERVER_INFO StopService_ServerInfo =
 #endif
 
 
-#endif /* defined(_M_AMD64)*/
+#endif /* !defined(_M_IA64) && !defined(_M_AMD64) && !defined(_ARM_) */
 

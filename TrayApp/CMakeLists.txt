@@ -1,12 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
 
-set(RPC_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/../rpc_generated")
-
-set(RPC_CLIENT_STUB  "${RPC_GEN_DIR}/TrayService_c.c")
-set(STOP_CLIENT_STUB "${RPC_GEN_DIR}/StopService_c.c")
-set_source_files_properties(
-    "${RPC_CLIENT_STUB}" "${STOP_CLIENT_STUB}"
-    PROPERTIES GENERATED TRUE)
+set(RPC_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../rpc_interface/generated")
 
 add_executable(TrayApp WIN32
     "main.cpp"
@@ -14,11 +8,9 @@ add_executable(TrayApp WIN32
     "RpcClient.cpp" "RpcClient.h"
     "resource.h"
     "TrayApp.rc"
-    "${RPC_CLIENT_STUB}"
-    "${STOP_CLIENT_STUB}"
+    "${RPC_GEN_DIR}/TrayService_c.c"
+    "${RPC_GEN_DIR}/StopService_c.c"
 )
-
-add_dependencies(TrayApp rpc_generated rpc_stop_generated)
 
 target_include_directories(TrayApp PRIVATE "${RPC_GEN_DIR}")
 target_compile_definitions(TrayApp PRIVATE UNICODE _UNICODE)
