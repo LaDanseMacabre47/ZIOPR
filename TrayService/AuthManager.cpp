@@ -95,7 +95,7 @@ void AuthManager::Logout()
     m_accessToken.clear();
     m_refreshToken.clear();
     m_username.clear();
-    m_accessExpiry  = 0;
+    m_accessExpiry = 0;
     m_refreshExpiry = 0;
     LeaveCriticalSection(&m_cs);
 }
@@ -130,12 +130,12 @@ BOOL AuthManager::ParseLoginResponse(const std::wstring& json)
     auto rt = JsonStr(json, L"refreshToken");
     if (at.empty()) return FALSE;
 
-    m_accessToken   = at;
-    m_refreshToken  = rt;
+    m_accessToken = at;
+    m_refreshToken = rt;
 
     LONGLONG now = UnixNow();
     // Сервер не возвращает expiry — считаем из конфига (мс → с)
-    m_accessExpiry  = now + JWT_ACCESS_EXPIRATION_MS  / 1000;
+    m_accessExpiry = now + JWT_ACCESS_EXPIRATION_MS / 1000;
     m_refreshExpiry = now + JWT_REFRESH_EXPIRATION_MS / 1000;
     return TRUE;
 }
@@ -165,9 +165,9 @@ void AuthManager::RefreshLoop()
     while (true)
     {
         EnterCriticalSection(&m_cs);
-        LONGLONG accessExp  = m_accessExpiry;
+        LONGLONG accessExp = m_accessExpiry;
         LONGLONG refreshExp = m_refreshExpiry;
-        std::wstring rt     = m_refreshToken;
+        std::wstring rt = m_refreshToken;
         LeaveCriticalSection(&m_cs);
 
         if (rt.empty()) break;
@@ -184,7 +184,7 @@ void AuthManager::RefreshLoop()
         LONGLONG waitSecs = (accessExp - 60) - now;
         if (waitSecs < 5) waitSecs = 5;
 
-        DWORD waitMs = (DWORD)(min(waitSecs, (LONGLONG)3600) * 1000);
+        DWORD waitMs = (DWORD)(std::min(waitSecs, (LONGLONG)3600) * 1000);
         if (WaitForSingleObject(m_hStopEvent, waitMs) == WAIT_OBJECT_0)
             break;
 
@@ -192,7 +192,7 @@ void AuthManager::RefreshLoop()
         now = UnixNow();
         EnterCriticalSection(&m_cs);
         accessExp = m_accessExpiry;
-        rt        = m_refreshToken;
+        rt = m_refreshToken;
         LeaveCriticalSection(&m_cs);
 
         if (rt.empty() || now < accessExp - 60) continue;

@@ -231,7 +231,7 @@ void LicenseManager::RefreshLoop()
         LONGLONG waitSecs = nextRefresh - now;
         if (waitSecs < 5) waitSecs = 5;
 
-        DWORD waitMs = (DWORD)(min(waitSecs, (LONGLONG)30) * 1000); // макс 30 сек
+        DWORD waitMs = (DWORD)(std::min(waitSecs, (LONGLONG)30) * 1000); // макс 30 сек
         if (WaitForSingleObject(m_hStopEvent, waitMs) == WAIT_OBJECT_0)
             break;
 
