@@ -19,7 +19,7 @@ add_executable(TrayService
 )
 
 target_include_directories(TrayService PRIVATE "${RPC_GEN_DIR}")
-target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE _M_AMD64 _AMD64_)
+target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE _M_AMD64 _AMD64_ NOMINMAX)
 target_link_libraries(TrayService PRIVATE
     rpcrt4 wtsapi32 advapi32 userenv winhttp iphlpapi)
 
