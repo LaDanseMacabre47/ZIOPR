@@ -1,0 +1,6 @@
+[
+    implicit_handle(handle_t TrayService_IfHandle)
+]
+interface TrayService
+{
+}
