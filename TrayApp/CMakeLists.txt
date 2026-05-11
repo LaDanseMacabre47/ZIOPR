@@ -13,9 +13,10 @@ add_executable(TrayApp WIN32
 )
 
 target_include_directories(TrayApp PRIVATE "${RPC_GEN_DIR}")
-target_compile_definitions(TrayApp PRIVATE UNICODE _UNICODE _M_AMD64 _AMD64_)
+target_compile_definitions(TrayApp PRIVATE
+    UNICODE _UNICODE _M_AMD64 _AMD64_ NOMINMAX)
 target_link_libraries(TrayApp PRIVATE
-    rpcrt4 wtsapi32 advapi32 comctl32)
+    rpcrt4 wtsapi32 advapi32 comctl32 shell32 ole32 comdlg32)
 
 set_property(TARGET TrayApp PROPERTY CXX_STANDARD 20)
 install(TARGETS TrayApp RUNTIME DESTINATION bin)

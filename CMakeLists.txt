@@ -14,3 +14,4 @@ set(RPC_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rpc_interface/generated")
 
 add_subdirectory("TrayApp")
 add_subdirectory("TrayService")
+add_subdirectory("AvDbTool")

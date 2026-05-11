@@ -32,7 +32,7 @@
 #include "TrayService.h"
 
 #define TYPE_FORMAT_STRING_SIZE   23                                
-#define PROC_FORMAT_STRING_SIZE   217                               
+#define PROC_FORMAT_STRING_SIZE   379                               
 #define EXPR_FORMAT_STRING_SIZE   1                                 
 #define TRANSMIT_AS_TABLE_SIZE    0            
 #define WIRE_MARSHAL_TABLE_SIZE   0            
@@ -335,6 +335,148 @@ static const TrayService_MIDL_PROC_FORMAT_STRING TrayService__MIDL_ProcFormatStr
 /* 214 */	0x8,		/* FC_LONG */
 			0x0,		/* 0 */
 
+	/* Procedure RpcGetAvDatabaseInfo */
+
+/* 216 */	0x0,		/* 0 */
+			0x48,		/* Old Flags:  */
+/* 218 */	NdrFcLong( 0x0 ),	/* 0 */
+/* 222 */	NdrFcShort( 0x5 ),	/* 5 */
+/* 224 */	NdrFcShort( 0x20 ),	/* X64 Stack size/offset = 32 */
+/* 226 */	0x32,		/* FC_BIND_PRIMITIVE */
+			0x0,		/* 0 */
+/* 228 */	NdrFcShort( 0x0 ),	/* X64 Stack size/offset = 0 */
+/* 230 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 232 */	NdrFcShort( 0x24 ),	/* 36 */
+/* 234 */	0x45,		/* Oi2 Flags:  srv must size, has return, has ext, */
+			0x3,		/* 3 */
+/* 236 */	0xa,		/* 10 */
+			0x1,		/* Ext Flags:  new corr desc, */
+/* 238 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 240 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 242 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 244 */	NdrFcShort( 0x0 ),	/* 0 */
+
+	/* Parameter recordCount */
+
+/* 246 */	NdrFcShort( 0x2150 ),	/* Flags:  out, base type, simple ref, srv alloc size=8 */
+/* 248 */	NdrFcShort( 0x8 ),	/* X64 Stack size/offset = 8 */
+/* 250 */	0x8,		/* FC_LONG */
+			0x0,		/* 0 */
+
+	/* Parameter releaseDate */
+
+/* 252 */	NdrFcShort( 0x2013 ),	/* Flags:  must size, must free, out, srv alloc size=8 */
+/* 254 */	NdrFcShort( 0x10 ),	/* X64 Stack size/offset = 16 */
+/* 256 */	NdrFcShort( 0xa ),	/* Type Offset=10 */
+
+	/* Return value */
+
+/* 258 */	NdrFcShort( 0x70 ),	/* Flags:  out, return, base type, */
+/* 260 */	NdrFcShort( 0x18 ),	/* X64 Stack size/offset = 24 */
+/* 262 */	0x8,		/* FC_LONG */
+			0x0,		/* 0 */
+
+	/* Procedure RpcScanFile */
+
+/* 264 */	0x0,		/* 0 */
+			0x48,		/* Old Flags:  */
+/* 266 */	NdrFcLong( 0x0 ),	/* 0 */
+/* 270 */	NdrFcShort( 0x6 ),	/* 6 */
+/* 272 */	NdrFcShort( 0x28 ),	/* X64 Stack size/offset = 40 */
+/* 274 */	0x32,		/* FC_BIND_PRIMITIVE */
+			0x0,		/* 0 */
+/* 276 */	NdrFcShort( 0x0 ),	/* X64 Stack size/offset = 0 */
+/* 278 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 280 */	NdrFcShort( 0x24 ),	/* 36 */
+/* 282 */	0x47,		/* Oi2 Flags:  srv must size, clt must size, has return, has ext, */
+			0x4,		/* 4 */
+/* 284 */	0xa,		/* 10 */
+			0x1,		/* Ext Flags:  new corr desc, */
+/* 286 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 288 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 290 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 292 */	NdrFcShort( 0x0 ),	/* 0 */
+
+	/* Parameter filePath */
+
+/* 294 */	NdrFcShort( 0x10b ),	/* Flags:  must size, must free, in, simple ref, */
+/* 296 */	NdrFcShort( 0x8 ),	/* X64 Stack size/offset = 8 */
+/* 298 */	NdrFcShort( 0x4 ),	/* Type Offset=4 */
+
+	/* Parameter isMalicious */
+
+/* 300 */	NdrFcShort( 0x2150 ),	/* Flags:  out, base type, simple ref, srv alloc size=8 */
+/* 302 */	NdrFcShort( 0x10 ),	/* X64 Stack size/offset = 16 */
+/* 304 */	0x8,		/* FC_LONG */
+			0x0,		/* 0 */
+
+	/* Parameter threatName */
+
+/* 306 */	NdrFcShort( 0x2013 ),	/* Flags:  must size, must free, out, srv alloc size=8 */
+/* 308 */	NdrFcShort( 0x18 ),	/* X64 Stack size/offset = 24 */
+/* 310 */	NdrFcShort( 0xa ),	/* Type Offset=10 */
+
+	/* Return value */
+
+/* 312 */	NdrFcShort( 0x70 ),	/* Flags:  out, return, base type, */
+/* 314 */	NdrFcShort( 0x20 ),	/* X64 Stack size/offset = 32 */
+/* 316 */	0x8,		/* FC_LONG */
+			0x0,		/* 0 */
+
+	/* Procedure RpcScanDirectory */
+
+/* 318 */	0x0,		/* 0 */
+			0x48,		/* Old Flags:  */
+/* 320 */	NdrFcLong( 0x0 ),	/* 0 */
+/* 324 */	NdrFcShort( 0x7 ),	/* 7 */
+/* 326 */	NdrFcShort( 0x30 ),	/* X64 Stack size/offset = 48 */
+/* 328 */	0x32,		/* FC_BIND_PRIMITIVE */
+			0x0,		/* 0 */
+/* 330 */	NdrFcShort( 0x0 ),	/* X64 Stack size/offset = 0 */
+/* 332 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 334 */	NdrFcShort( 0x40 ),	/* 64 */
+/* 336 */	0x47,		/* Oi2 Flags:  srv must size, clt must size, has return, has ext, */
+			0x5,		/* 5 */
+/* 338 */	0xa,		/* 10 */
+			0x1,		/* Ext Flags:  new corr desc, */
+/* 340 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 342 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 344 */	NdrFcShort( 0x0 ),	/* 0 */
+/* 346 */	NdrFcShort( 0x0 ),	/* 0 */
+
+	/* Parameter dirPath */
+
+/* 348 */	NdrFcShort( 0x10b ),	/* Flags:  must size, must free, in, simple ref, */
+/* 350 */	NdrFcShort( 0x8 ),	/* X64 Stack size/offset = 8 */
+/* 352 */	NdrFcShort( 0x4 ),	/* Type Offset=4 */
+
+	/* Parameter filesScanned */
+
+/* 354 */	NdrFcShort( 0x2150 ),	/* Flags:  out, base type, simple ref, srv alloc size=8 */
+/* 356 */	NdrFcShort( 0x10 ),	/* X64 Stack size/offset = 16 */
+/* 358 */	0x8,		/* FC_LONG */
+			0x0,		/* 0 */
+
+	/* Parameter threatsFound */
+
+/* 360 */	NdrFcShort( 0x2150 ),	/* Flags:  out, base type, simple ref, srv alloc size=8 */
+/* 362 */	NdrFcShort( 0x18 ),	/* X64 Stack size/offset = 24 */
+/* 364 */	0x8,		/* FC_LONG */
+			0x0,		/* 0 */
+
+	/* Parameter threatList */
+
+/* 366 */	NdrFcShort( 0x2013 ),	/* Flags:  must size, must free, out, srv alloc size=8 */
+/* 368 */	NdrFcShort( 0x20 ),	/* X64 Stack size/offset = 32 */
+/* 370 */	NdrFcShort( 0xa ),	/* Type Offset=10 */
+
+	/* Return value */
+
+/* 372 */	NdrFcShort( 0x70 ),	/* Flags:  out, return, base type, */
+/* 374 */	NdrFcShort( 0x28 ),	/* X64 Stack size/offset = 40 */
+/* 376 */	0x8,		/* FC_LONG */
+			0x0,		/* 0 */
+
 			0x0
         }
     };
@@ -376,7 +518,10 @@ static const unsigned short TrayService_FormatStringOffsetTable[] =
     48,
     78,
     126,
-    174
+    174,
+    216,
+    264,
+    318
     };
 
 
@@ -417,11 +562,14 @@ static const RPC_DISPATCH_FUNCTION TrayService_table[] =
     NdrServerCall2,
     NdrServerCall2,
     NdrServerCall2,
+    NdrServerCall2,
+    NdrServerCall2,
+    NdrServerCall2,
     0
     };
 static const RPC_DISPATCH_TABLE TrayService_v1_0_DispatchTable = 
     {
-    5,
+    8,
     (RPC_DISPATCH_FUNCTION*)TrayService_table
     };
 
@@ -431,7 +579,10 @@ static const SERVER_ROUTINE TrayService_ServerRoutineTable[] =
     (SERVER_ROUTINE)RpcLogout,
     (SERVER_ROUTINE)RpcGetCurrentUser,
     (SERVER_ROUTINE)RpcGetLicenseStatus,
-    (SERVER_ROUTINE)RpcActivateProduct
+    (SERVER_ROUTINE)RpcActivateProduct,
+    (SERVER_ROUTINE)RpcGetAvDatabaseInfo,
+    (SERVER_ROUTINE)RpcScanFile,
+    (SERVER_ROUTINE)RpcScanDirectory
     };
 
 static const MIDL_SERVER_INFO TrayService_ServerInfo = 

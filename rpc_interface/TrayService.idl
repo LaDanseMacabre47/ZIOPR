@@ -4,24 +4,55 @@
 ]
 interface TrayService
 {
+    // --- Auth ---
     long RpcLogin(
+        [in] handle_t IDL_handle,
         [in, string] const wchar_t* username,
         [in, string] const wchar_t* password
     );
 
-    void RpcLogout();
+    void RpcLogout(
+        [in] handle_t IDL_handle
+    );
 
     long RpcGetCurrentUser(
+        [in]  handle_t IDL_handle,
         [out] long* authenticated,
         [out, string] wchar_t** username
     );
 
+    // --- License ---
     long RpcGetLicenseStatus(
+        [in]  handle_t IDL_handle,
         [out] long* hasLicense,
         [out] __int64* expiryUnixTime
     );
 
     long RpcActivateProduct(
+        [in] handle_t IDL_handle,
         [in, string] const wchar_t* activationCode
+    );
+
+    // --- AV Database ---
+    long RpcGetAvDatabaseInfo(
+        [in]  handle_t IDL_handle,
+        [out] long* recordCount,
+        [out, string] wchar_t** releaseDate
+    );
+
+    // --- Scan ---
+    long RpcScanFile(
+        [in]  handle_t IDL_handle,
+        [in, string] const wchar_t* filePath,
+        [out] long* isMalicious,
+        [out, string] wchar_t** threatName
+    );
+
+    long RpcScanDirectory(
+        [in]  handle_t IDL_handle,
+        [in, string] const wchar_t* dirPath,
+        [out] long* filesScanned,
+        [out] long* threatsFound,
+        [out, string] wchar_t** threatList
     );
 }

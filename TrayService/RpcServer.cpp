@@ -1,6 +1,8 @@
 #include "RpcServer.h"
 #include "AuthManager.h"
 #include "LicenseManager.h"
+#include "AvDatabase.h"
+#include "ScanManager.h"
 #include <stdlib.h>
 #include <rpc.h>
 
@@ -19,10 +21,28 @@ static LONG CheckLicenseTicket()
     return ERROR_SUCCESS;
 }
 
-// ---------------------------------------------------------------
-// Все функции принимают explicit handle_t (IDL_handle)
-// ---------------------------------------------------------------
+// Вспомогательная функция загрузки баз
+static void LoadAvDatabase()
+{
+    if (GetAvDatabaseManager().IsLoaded()) return;
 
+    // Определяем путь к exe
+    wchar_t exePath[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    // Убираем имя файла
+    wchar_t* slash = wcsrchr(exePath, L'\\');
+    if (slash) *(slash + 1) = L'\0';
+
+    std::wstring avdbPath = std::wstring(exePath) + L"bases.avdb";
+    std::wstring pubkPath = std::wstring(exePath) + L"avdb_public.key";
+
+    // Пробуем загрузить из файла
+    if (!GetAvDatabaseManager().Load(avdbPath.c_str(), pubkPath.c_str()))
+    {
+        // Файл не найден или подпись не прошла — используем хардкод
+        GetAvDatabaseManager().LoadHardcoded();
+    }
+}
 long RpcLogin(handle_t, const wchar_t* username, const wchar_t* password)
 {
     return GetAuthManager().Login(username, password);
@@ -52,6 +72,9 @@ long RpcGetCurrentUser(handle_t, long* authenticated, wchar_t** username)
     return 0;
 }
 
+// ---------------------------------------------------------------
+// License
+// ---------------------------------------------------------------
 long RpcGetLicenseStatus(handle_t, long* hasLicense, __int64* expiryUnixTime)
 {
     *hasLicense = 0;
@@ -70,16 +93,10 @@ long RpcGetLicenseStatus(handle_t, long* hasLicense, __int64* expiryUnixTime)
         *hasLicense = 0;
         return ERROR_SUCCESS;
     }
-
-    if (r != ERROR_SUCCESS)
-        return r;
+    if (r != ERROR_SUCCESS) return r;
 
     LONG check = CheckLicenseTicket();
-    if (check != ERROR_SUCCESS)
-    {
-        *hasLicense = 0;
-        return ERROR_SUCCESS;
-    }
+    if (check != ERROR_SUCCESS) { *hasLicense = 0; return ERROR_SUCCESS; }
 
     LONGLONG exp = 0;
     GetLicenseManager().GetLicenseInfo(&exp);
@@ -99,12 +116,121 @@ long RpcActivateProduct(handle_t, const wchar_t* activationCode)
 
     if (r == ERROR_SUCCESS)
     {
+        // Загружаем антивирусные базы после активации (п.1 требований)
+        LoadAvDatabase();
+
         LONG check = CheckLicenseTicket();
         if (check != ERROR_SUCCESS) return check;
     }
     return r;
 }
 
+// ---------------------------------------------------------------
+// AV Database info
+// ---------------------------------------------------------------
+long RpcGetAvDatabaseInfo(handle_t, long* recordCount, wchar_t** releaseDate)
+{
+    *recordCount = 0;
+    *releaseDate = nullptr;
+
+    wchar_t user[256]{};
+    if (!GetAuthManager().GetCurrentUser(user))
+        return ERROR_NOT_AUTHENTICATED;
+
+    if (!GetAvDatabaseManager().IsLoaded())
+        LoadAvDatabase();
+
+    auto info = GetAvDatabaseManager().GetInfo();
+    *recordCount = (long)info.RecordCount;
+
+    size_t len = (info.ReleaseDate.size() + 1) * sizeof(wchar_t);
+    *releaseDate = (wchar_t*)midl_user_allocate(len);
+    if (*releaseDate)
+        wcscpy_s(*releaseDate, info.ReleaseDate.size() + 1,
+            info.ReleaseDate.c_str());
+    return 0;
+}
+
+// ---------------------------------------------------------------
+// Scan file
+// ---------------------------------------------------------------
+long RpcScanFile(handle_t,
+    const wchar_t* filePath,
+    long* isMalicious,
+    wchar_t** threatName)
+{
+    *isMalicious = 0;
+    *threatName = nullptr;
+
+    wchar_t user[256]{};
+    if (!GetAuthManager().GetCurrentUser(user))
+        return ERROR_NOT_AUTHENTICATED;
+
+    LONG check = CheckLicenseTicket();
+    if (check != ERROR_SUCCESS) return check;
+
+    if (!GetAvDatabaseManager().IsLoaded())
+        LoadAvDatabase();
+
+    auto result = ScanManager::ScanFile(filePath);
+    *isMalicious = result.IsMalicious ? 1 : 0;
+
+    std::wstring name = result.IsMalicious ? result.ThreatName : L"Clean";
+    size_t len = (name.size() + 1) * sizeof(wchar_t);
+    *threatName = (wchar_t*)midl_user_allocate(len);
+    if (*threatName)
+        wcscpy_s(*threatName, name.size() + 1, name.c_str());
+
+    return 0;
+}
+
+// ---------------------------------------------------------------
+// Scan directory
+// ---------------------------------------------------------------
+long RpcScanDirectory(handle_t,
+    const wchar_t* dirPath,
+    long* filesScanned,
+    long* threatsFound,
+    wchar_t** threatList)
+{
+    *filesScanned = 0;
+    *threatsFound = 0;
+    *threatList = nullptr;
+
+    wchar_t user[256]{};
+    if (!GetAuthManager().GetCurrentUser(user))
+        return ERROR_NOT_AUTHENTICATED;
+
+    LONG check = CheckLicenseTicket();
+    if (check != ERROR_SUCCESS) return check;
+
+    if (!GetAvDatabaseManager().IsLoaded())
+        LoadAvDatabase();
+
+    auto result = ScanManager::ScanDirectory(dirPath);
+    *filesScanned = (long)result.FilesScanned;
+    *threatsFound = (long)result.ThreatsFound;
+
+    // Формируем список угроз через \n
+    std::wstring list;
+    for (auto& t : result.Threats)
+    {
+        list += t.FilePath;
+        list += L" -> ";
+        list += t.ThreatName;
+        list += L"\n";
+    }
+    if (list.empty()) list = L"No threats found";
+
+    size_t len = (list.size() + 1) * sizeof(wchar_t);
+    *threatList = (wchar_t*)midl_user_allocate(len);
+    if (*threatList)
+        wcscpy_s(*threatList, list.size() + 1, list.c_str());
+
+    return 0;
+}
+
+// ---------------------------------------------------------------
 void RpcStopService(handle_t)
 {
     if (s_hStopEvent) SetEvent(s_hStopEvent);
@@ -115,6 +241,9 @@ BOOL StartRpcServer()
 {
     s_hStopEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (!s_hStopEvent) return FALSE;
+
+    // Загружаем базы при старте
+    LoadAvDatabase();
 
     RPC_STATUS status;
     status = RpcServerUseProtseqEpW(

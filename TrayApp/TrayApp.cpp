@@ -3,6 +3,8 @@
 #include "resource.h"
 #include <tlhelp32.h>
 #include <wtsapi32.h>
+#include <shlobj.h>
+#include <commdlg.h>
 #include <time.h>
 #include <cstdio>
 
@@ -262,10 +264,15 @@ void ShowActivePanel(HWND hParent, const wchar_t* username, __int64 expiryUnix)
     }
     AddLabel(hParent, IDC_LBL_EXPIRY, expiryLine, 20, 100, 420, 22);
 
-    // Antivirus placeholder
-    AddLabel(hParent, 0,
-        L"[Antivirus functionality unlocked]",
-        20, 140, 420, 22);
+    // AV database info
+    long dbCount = 0;
+    wchar_t dbDate[64]{};
+    RpcClientGetAvDatabaseInfo(&dbCount, dbDate);
+
+    wchar_t dbLine[200]{};
+    swprintf_s(dbLine, L"AV Database: %s | Records: %ld",
+        dbDate[0] ? dbDate : L"unknown", dbCount);
+    AddLabel(hParent, 0, dbLine, 20, 122, 420, 18);
 
     CreateWindowExW(0, L"BUTTON", L"Scan",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
@@ -465,10 +472,109 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
         case IDC_BTN_SCAN:
         {
-            HWND hResult = GetDlgItem(hWnd, IDC_LBL_STATUS + 1);
-            if (hResult) SetWindowTextW(hResult, L"Scanning...");
-            // Имитация сканирования — через 2 сек показываем результат
-            SetTimer(hWnd, 1, 2000, nullptr);
+            // Показываем меню выбора: файл или папка
+            HMENU hMenu = CreatePopupMenu();
+            AppendMenuW(hMenu, MF_STRING, IDC_BTN_SCAN + 10, L"Scan File...");
+            AppendMenuW(hMenu, MF_STRING, IDC_BTN_SCAN + 11, L"Scan Directory...");
+            RECT rc{}; GetWindowRect(GetDlgItem(hWnd, IDC_BTN_SCAN), &rc);
+            TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN,
+                rc.left, rc.bottom, 0, hWnd, nullptr);
+            DestroyMenu(hMenu);
+            break;
+        }
+
+        case IDC_BTN_SCAN + 10:  // Scan File
+        {
+            wchar_t path[MAX_PATH]{};
+            OPENFILENAMEW ofn{};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = hWnd;
+            ofn.lpstrFile = path;
+            ofn.nMaxFile = MAX_PATH;
+            ofn.lpstrTitle = L"Select file to scan";
+            ofn.Flags = OFN_FILEMUSTEXIST;
+            if (GetOpenFileNameW(&ofn))
+            {
+                long isMalicious = 0;
+                wchar_t threatName[256]{};
+                long r = RpcClientScanFile(path, &isMalicious, threatName);
+
+                wchar_t msg[512]{};
+                if (r != 0)
+                    swprintf_s(msg, L"Scan error: %ld", r);
+                else if (isMalicious)
+                    swprintf_s(msg, L"THREAT DETECTED!\n%s\n\nFile: %s",
+                        threatName, path);
+                else
+                    swprintf_s(msg, L"File is clean.\n%s", path);
+
+                MessageBoxW(hWnd, msg,
+                    isMalicious ? L"Threat Found!" : L"Scan Result",
+                    isMalicious ? MB_ICONWARNING : MB_ICONINFORMATION);
+            }
+            break;
+        }
+
+        case IDC_BTN_SCAN + 11:  // Scan Directory
+        {
+            wchar_t path[MAX_PATH]{};
+            BROWSEINFOW bi{};
+            bi.hwndOwner = hWnd;
+            bi.lpszTitle = L"Select directory to scan";
+            bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+            LPITEMIDLIST pidl = SHBrowseForFolderW(&bi);
+            if (pidl && SHGetPathFromIDListW(pidl, path))
+            {
+                // Показываем что идёт сканирование
+                HWND hResult = GetDlgItem(hWnd, IDC_LBL_STATUS + 1);
+                if (hResult) SetWindowTextW(hResult, L"Scanning...");
+                EnableWindow(GetDlgItem(hWnd, IDC_BTN_SCAN), FALSE);
+
+                // Запускаем сканирование в отдельном потоке
+                struct ScanParams {
+                    HWND    hWnd;
+                    wchar_t path[MAX_PATH];
+                };
+                auto* params = new ScanParams();
+                params->hWnd = hWnd;
+                wcscpy_s(params->path, path);
+
+                CreateThread(nullptr, 0, [](LPVOID p) -> DWORD {
+                    auto* sp = static_cast<ScanParams*>(p);
+
+                    long filesScanned = 0, threatsFound = 0;
+                    wchar_t* threatList = nullptr;
+                    long r = RpcClientScanDirectory(sp->path,
+                        &filesScanned,
+                        &threatsFound,
+                        &threatList);
+
+                    wchar_t msg[1024]{};
+                    if (r != 0)
+                        swprintf_s(msg, L"Scan error: %ld", r);
+                    else
+                        swprintf_s(msg,
+                            L"Scan complete.\nFiles scanned: %ld\nThreats found: %ld\n\n%s",
+                            filesScanned, threatsFound,
+                            threatList ? threatList : L"");
+
+                    if (threatList) midl_user_free(threatList);
+
+                    // Показываем результат в UI потоке
+                    MessageBoxW(sp->hWnd, msg,
+                        threatsFound > 0 ? L"Threats Found!" : L"Scan Result",
+                        threatsFound > 0 ? MB_ICONWARNING : MB_ICONINFORMATION);
+
+                    // Разблокируем кнопку
+                    EnableWindow(GetDlgItem(sp->hWnd, IDC_BTN_SCAN), TRUE);
+                    HWND hLbl = GetDlgItem(sp->hWnd, IDC_LBL_STATUS + 1);
+                    if (hLbl) SetWindowTextW(hLbl, L"");
+
+                    delete sp;
+                    return 0;
+                    }, params, 0, nullptr);
+            }
+            if (pidl) CoTaskMemFree(pidl);
             break;
         }
 

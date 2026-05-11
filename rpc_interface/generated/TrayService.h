@@ -82,6 +82,24 @@ long RpcActivateProduct(
     /* [in] */ handle_t IDL_handle,
     /* [string][in] */ const wchar_t *activationCode);
 
+long RpcGetAvDatabaseInfo( 
+    /* [in] */ handle_t IDL_handle,
+    /* [out] */ long *recordCount,
+    /* [string][out] */ wchar_t **releaseDate);
+
+long RpcScanFile( 
+    /* [in] */ handle_t IDL_handle,
+    /* [string][in] */ const wchar_t *filePath,
+    /* [out] */ long *isMalicious,
+    /* [string][out] */ wchar_t **threatName);
+
+long RpcScanDirectory( 
+    /* [in] */ handle_t IDL_handle,
+    /* [string][in] */ const wchar_t *dirPath,
+    /* [out] */ long *filesScanned,
+    /* [out] */ long *threatsFound,
+    /* [string][out] */ wchar_t **threatList);
+
 
 
 extern RPC_IF_HANDLE TrayService_v1_0_c_ifspec;

@@ -10,6 +10,9 @@ add_executable(TrayService
     "AuthManager.cpp"     "AuthManager.h"
     "LicenseManager.cpp"  "LicenseManager.h"
     "HttpClient.cpp"      "HttpClient.h"
+    "AvDatabase.cpp"      "AvDatabase.h"
+    "ScanEngine.cpp"      "ScanEngine.h"
+    "ScanManager.cpp"     "ScanManager.h"
     "ApiConfig.h"
     "DeviceId.h"
     "${RPC_GEN_DIR}/TrayService_s.c"
@@ -17,11 +20,11 @@ add_executable(TrayService
 )
 
 target_include_directories(TrayService PRIVATE "${RPC_GEN_DIR}")
-target_compile_definitions(TrayService PRIVATE UNICODE _UNICODE _M_AMD64 _AMD64_ NOMINMAX)
+target_compile_definitions(TrayService PRIVATE
+    UNICODE _UNICODE _M_AMD64 _AMD64_ NOMINMAX)
 target_link_libraries(TrayService PRIVATE
-    rpcrt4 wtsapi32 advapi32 userenv winhttp iphlpapi)
+    rpcrt4 wtsapi32 advapi32 userenv winhttp iphlpapi bcrypt)
 
-# Консольное приложение (не WIN32) — нужен main(), не WinMain()
 set_target_properties(TrayService PROPERTIES
     WIN32_EXECUTABLE FALSE
     CXX_STANDARD 20)
