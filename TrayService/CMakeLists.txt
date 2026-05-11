@@ -13,9 +13,7 @@ add_executable(TrayService
     "ApiConfig.h"
     "DeviceId.h"
     "${RPC_GEN_DIR}/TrayService_s.c"
-    "${RPC_GEN_DIR}/TrayService_c.c"
     "${RPC_GEN_DIR}/StopService_s.c"
-    "${RPC_GEN_DIR}/StopService_c.c"
 )
 
 target_include_directories(TrayService PRIVATE "${RPC_GEN_DIR}")
