@@ -28,3 +28,7 @@ rpc_generated/
 *.ilk
 *.lib
 *.exp
+
+avdb_private.key
+*.key
+bases.avdb

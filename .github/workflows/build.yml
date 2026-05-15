@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+    branches: [ "feature/tray-service", "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Upload executables
+      uses: actions/upload-artifact@v4
+      with:
+        name: executables
+        path: |
+          build/bin/Release/TrayService.exe
+          build/bin/Release/TrayApp.exe
+        retention-days: 7
+
+  installer:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Download executables
+      uses: actions/download-artifact@v4
+      with:
+        name: executables
+        path: installer/bin
+
+    - name: Install NSIS
+      run: choco install nsis -y
+
+    - name: Download VC_redist
+      run: |
+        New-Item -ItemType Directory -Force installer/redist
+        Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" `
+          -OutFile "installer/redist/VC_redist.x64.exe"
+
+    - name: Build installer
+      run: |
+        & "C:\Program Files (x86)\NSIS\makensis.exe" /V2 installer\TrayApp.nsi
+
+    - name: Upload installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: TrayApp-Setup
+        path: installer/TrayApp-Setup.exe
+        retention-days: 30
