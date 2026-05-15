@@ -1,41 +1,56 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 // ================================================================
-//  Формат бинарного файла антивирусных баз (.avdb)
+//  Бинарный формат пакета антивирусных баз (Big-Endian)
+//  Источник: бэкенд /api/binary/signatures/full
+//  Формат: multipart/mixed с двумя частями: manifest.bin + data.bin
 // ================================================================
 
-#pragma pack(push, 1)
+// ---------------------------------------------------------------
+//  manifest.bin
+// ---------------------------------------------------------------
+// Заголовок (все числа Big-Endian):
+//   magic:                null-terminated "MF-<Фамилия>"
+//   version:              uint8
+//   exportType:           uint8   (1=full, 2=increment, 3=by-ids)
+//   generatedAtEpochMs:   int64
+//   sinceEpochMs:         int64   (-1 для full dump)
+//   recordCount:          uint32
+//   dataSha256:           32 bytes
+//
+// entries[recordCount]:
+//   uuid:                 16 bytes
+//   statusCode:           uint8   (0=DELETED, 1=ACTUAL)
+//   updatedAtEpochMs:     int64
+//   dataOffset:           uint64
+//   dataLength:           uint32
+//   recordSigLen:         uint32
+//   recordSigBytes:       recordSigLen bytes  (RSA подпись записи из data.bin)
+//
+// manifestSigLen:         uint32
+// manifestSigBytes:       manifestSigLen bytes (RSA подпись всего манифеста)
 
-// Заголовок файла
-struct AvDbFileHeader
-{
-    uint8_t  Magic[4];        // "AVDB"
-    uint16_t Version;         // = 1
-    uint64_t ReleaseDate;     // YYYYMMDD как uint64 (например 20260511)
-    uint32_t RecordCount;     // количество записей
-};
+// ---------------------------------------------------------------
+//  data.bin
+// ---------------------------------------------------------------
+// Заголовок:
+//   magic:                null-terminated "DB-<Фамилия>"
+//   version:              uint8
+//   recordCount:          uint32
+//
+// records[recordCount]:
+//   threatNameLen:        uint32
+//   threatName:           threatNameLen bytes (UTF-8)
+//   firstBytesLen:        uint32
+//   firstBytes:           firstBytesLen bytes (raw, декодированный hex)
+//   remainderHash:        32 bytes (SHA-256 raw)
+//   remainderLength:      uint32
+//   fileType:             uint8   (0=PE, 1=Script, ...)
+//   offsetStart:          int64
+//   offsetEnd:            int64
 
-// Одна запись в файле
-struct AvDbFileRecord
-{
-    uint64_t ObjectSignaturePrefix;   // первые 8 байт сигнатуры
-    uint32_t ObjectSignatureLength;   // полная длина сигнатуры
-    uint8_t  ObjectSignature[32];     // SHA-256 хеш сигнатуры
-    uint64_t OffsetBegin;             // начало интервала
-    uint64_t OffsetEnd;               // конец интервала (0 = любой)
-    uint8_t  ObjectType;              // 0=PE, 1=Script
-    uint8_t  AvRecordSignature[256];  // RSA-2048 подпись записи
-    uint16_t ThreatNameLen;           // длина имени угрозы в байтах (UTF-16)
-    // далее ThreatNameLen байт UTF-16 строки
-};
-
-#pragma pack(pop)
-
-// В конце файла:
-// uint8_t DatabaseSignature[256] — RSA-2048 подпись всего файла
-//                                   (SHA-256 от заголовка + всех записей)
-
-constexpr uint8_t  AVDB_MAGIC[4] = { 'A', 'V', 'D', 'B' };
-constexpr uint16_t AVDB_VERSION = 1;
-constexpr size_t   AVDB_RSA_SIG_LEN = 256;  // RSA-2048
+// Статус записи манифеста
+constexpr uint8_t MANIFEST_STATUS_DELETED = 0;
+constexpr uint8_t MANIFEST_STATUS_ACTUAL = 1;

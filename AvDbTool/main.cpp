@@ -1,140 +1,128 @@
+// AvDbTool - утилита генерации ключей и тестовых баз
+// Формат: manifest.bin + data.bin (Big-Endian, как на бэкенде)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <bcrypt.h>
-#include <wincrypt.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <vector>
 #include <string>
 #include <fstream>
-#include "AvDbFormat.h"
+#include <cstring>
 
 #pragma comment(lib, "bcrypt.lib")
-#pragma comment(lib, "crypt32.lib")
-#pragma comment(lib, "advapi32.lib")
 
 // ---------------------------------------------------------------
-// SHA-256 через CNG
+// Big-Endian write helpers
+// ---------------------------------------------------------------
+static void W8(std::vector<uint8_t>& v, uint8_t  x) { v.push_back(x); }
+static void W16(std::vector<uint8_t>& v, uint16_t x) { v.push_back(x >> 8); v.push_back(x & 0xff); }
+static void W32(std::vector<uint8_t>& v, uint32_t x) {
+    v.push_back((x >> 24) & 0xff); v.push_back((x >> 16) & 0xff);
+    v.push_back((x >> 8) & 0xff);  v.push_back(x & 0xff);
+}
+static void W64(std::vector<uint8_t>& v, uint64_t x) {
+    for (int i = 7; i >= 0; i--) v.push_back((x >> (i * 8)) & 0xff);
+}
+static void W64s(std::vector<uint8_t>& v, int64_t x) { W64(v, (uint64_t)x); }
+static void WBytes(std::vector<uint8_t>& v, const void* p, size_t n) {
+    auto b = (const uint8_t*)p; v.insert(v.end(), b, b + n);
+}
+static void WStr(std::vector<uint8_t>& v, const char* s) {
+    while (*s) v.push_back((uint8_t)*s++);
+    v.push_back(0); // null terminator
+}
+
+// ---------------------------------------------------------------
+// SHA-256
 // ---------------------------------------------------------------
 static bool Sha256(const uint8_t* data, size_t len, uint8_t out[32])
 {
-    BCRYPT_ALG_HANDLE hAlg = nullptr;
+    BCRYPT_ALG_HANDLE  hAlg = nullptr;
     BCRYPT_HASH_HANDLE hHash = nullptr;
     bool ok = false;
-
-    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM,
-        nullptr, 0) == 0)
-    {
-        DWORD hashObjSize = 0, cbData = 0;
-        BCryptGetProperty(hAlg, BCRYPT_OBJECT_LENGTH,
-            (PUCHAR)&hashObjSize, sizeof(DWORD), &cbData, 0);
-        std::vector<uint8_t> hashObj(hashObjSize);
-
-        if (BCryptCreateHash(hAlg, &hHash, hashObj.data(), hashObjSize,
-            nullptr, 0, 0) == 0)
-        {
-            BCryptHashData(hHash, (PUCHAR)data, (ULONG)len, 0);
-            ok = (BCryptFinishHash(hHash, out, 32, 0) == 0);
-            BCryptDestroyHash(hHash);
-        }
-        BCryptCloseAlgorithmProvider(hAlg, 0);
+    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0) != 0)
+        return false;
+    DWORD objSz = 0, cb = 0;
+    BCryptGetProperty(hAlg, BCRYPT_OBJECT_LENGTH, (PUCHAR)&objSz, sizeof(DWORD), &cb, 0);
+    std::vector<uint8_t> obj(objSz);
+    if (BCryptCreateHash(hAlg, &hHash, obj.data(), objSz, nullptr, 0, 0) == 0) {
+        BCryptHashData(hHash, (PUCHAR)data, (ULONG)len, 0);
+        ok = BCryptFinishHash(hHash, out, 32, 0) == 0;
+        BCryptDestroyHash(hHash);
     }
+    BCryptCloseAlgorithmProvider(hAlg, 0);
     return ok;
 }
 
 // ---------------------------------------------------------------
-// RSA-2048 Sign (SHA-256 + PKCS1)
+// RSA Sign
 // ---------------------------------------------------------------
 static bool RsaSign(BCRYPT_KEY_HANDLE hKey,
     const uint8_t* data, size_t len,
-    uint8_t sig[256])
+    std::vector<uint8_t>& sig)
 {
     uint8_t hash[32]{};
     if (!Sha256(data, len, hash)) return false;
-
-    BCRYPT_PKCS1_PADDING_INFO pad{};
-    pad.pszAlgId = BCRYPT_SHA256_ALGORITHM;
-
+    BCRYPT_PKCS1_PADDING_INFO pad{}; pad.pszAlgId = BCRYPT_SHA256_ALGORITHM;
     ULONG sigLen = 0;
-    if (BCryptSignHash(hKey, &pad, hash, 32, nullptr, 0,
-        &sigLen, BCRYPT_PAD_PKCS1) != 0)
+    if (BCryptSignHash(hKey, &pad, hash, 32, nullptr, 0, &sigLen, BCRYPT_PAD_PKCS1) != 0)
         return false;
-
-    if (sigLen != 256) return false;
-
-    return BCryptSignHash(hKey, &pad, hash, 32, sig, 256,
-        &sigLen, BCRYPT_PAD_PKCS1) == 0;
+    sig.resize(sigLen);
+    return BCryptSignHash(hKey, &pad, hash, 32, sig.data(), sigLen, &sigLen,
+        BCRYPT_PAD_PKCS1) == 0;
 }
 
 // ---------------------------------------------------------------
-// Генерация RSA-2048 ключевой пары
+// Generate RSA-2048 key pair
 // ---------------------------------------------------------------
-static bool GenerateKeyPair(const wchar_t* privKeyFile,
-    const wchar_t* pubKeyFile)
+static bool GenerateKeyPair(const wchar_t* privFile, const wchar_t* pubFile)
 {
     BCRYPT_ALG_HANDLE hAlg = nullptr;
     BCRYPT_KEY_HANDLE hKey = nullptr;
+    bool ok = false;
 
-    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_RSA_ALGORITHM,
-        nullptr, 0) != 0)
+    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_RSA_ALGORITHM, nullptr, 0) != 0)
         return false;
 
-    bool ok = false;
     if (BCryptGenerateKeyPair(hAlg, &hKey, 2048, 0) == 0 &&
         BCryptFinalizeKeyPair(hKey, 0) == 0)
     {
-        // Экспорт приватного ключа (PKCS#8 DER)
-        ULONG privLen = 0;
-        BCryptExportKey(hKey, nullptr, BCRYPT_RSAFULLPRIVATE_BLOB,
-            nullptr, 0, &privLen, 0);
-        std::vector<uint8_t> privBlob(privLen);
-        BCryptExportKey(hKey, nullptr, BCRYPT_RSAFULLPRIVATE_BLOB,
-            privBlob.data(), privLen, &privLen, 0);
+        ULONG n = 0;
+        BCryptExportKey(hKey, nullptr, BCRYPT_RSAFULLPRIVATE_BLOB, nullptr, 0, &n, 0);
+        std::vector<uint8_t> priv(n);
+        BCryptExportKey(hKey, nullptr, BCRYPT_RSAFULLPRIVATE_BLOB, priv.data(), n, &n, 0);
 
-        // Экспорт публичного ключа
-        ULONG pubLen = 0;
-        BCryptExportKey(hKey, nullptr, BCRYPT_RSAPUBLIC_BLOB,
-            nullptr, 0, &pubLen, 0);
-        std::vector<uint8_t> pubBlob(pubLen);
-        BCryptExportKey(hKey, nullptr, BCRYPT_RSAPUBLIC_BLOB,
-            pubBlob.data(), pubLen, &pubLen, 0);
+        ULONG m = 0;
+        BCryptExportKey(hKey, nullptr, BCRYPT_RSAPUBLIC_BLOB, nullptr, 0, &m, 0);
+        std::vector<uint8_t> pub(m);
+        BCryptExportKey(hKey, nullptr, BCRYPT_RSAPUBLIC_BLOB, pub.data(), m, &m, 0);
 
-        // Сохраняем в файлы
-        std::ofstream fPriv(privKeyFile, std::ios::binary);
-        fPriv.write((char*)privBlob.data(), privBlob.size());
-        fPriv.close();
+        { std::ofstream f(privFile, std::ios::binary); f.write((char*)priv.data(), priv.size()); }
+        { std::ofstream f(pubFile, std::ios::binary); f.write((char*)pub.data(), pub.size()); }
 
-        std::ofstream fPub(pubKeyFile, std::ios::binary);
-        fPub.write((char*)pubBlob.data(), pubBlob.size());
-        fPub.close();
-
-        wprintf(L"Private key: %s\n", privKeyFile);
-        wprintf(L"Public key:  %s\n", pubKeyFile);
+        wprintf(L"Private key: %s\n", privFile);
+        wprintf(L"Public key:  %s\n", pubFile);
         ok = true;
     }
-
     if (hKey) BCryptDestroyKey(hKey);
     BCryptCloseAlgorithmProvider(hAlg, 0);
     return ok;
 }
 
 // ---------------------------------------------------------------
-// Загрузить приватный ключ из файла
+// Load private key
 // ---------------------------------------------------------------
-static BCRYPT_KEY_HANDLE LoadPrivateKey(const wchar_t* file)
+static BCRYPT_KEY_HANDLE LoadPrivKey(const wchar_t* file)
 {
     std::ifstream f(file, std::ios::binary | std::ios::ate);
     if (!f) return nullptr;
     size_t sz = (size_t)f.tellg(); f.seekg(0);
     std::vector<uint8_t> blob(sz);
     f.read((char*)blob.data(), sz);
-
-    BCRYPT_ALG_HANDLE hAlg = nullptr;
-    BCRYPT_KEY_HANDLE hKey = nullptr;
-    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_RSA_ALGORITHM,
-        nullptr, 0) != 0)
+    BCRYPT_ALG_HANDLE hAlg = nullptr; BCRYPT_KEY_HANDLE hKey = nullptr;
+    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_RSA_ALGORITHM, nullptr, 0) != 0)
         return nullptr;
-
     BCryptImportKeyPair(hAlg, nullptr, BCRYPT_RSAFULLPRIVATE_BLOB,
         &hKey, blob.data(), (ULONG)sz, 0);
     BCryptCloseAlgorithmProvider(hAlg, 0);
@@ -142,137 +130,157 @@ static BCRYPT_KEY_HANDLE LoadPrivateKey(const wchar_t* file)
 }
 
 // ---------------------------------------------------------------
-// Построить запись + подписать
+// Create manifest.bin + data.bin
 // ---------------------------------------------------------------
-static bool BuildRecord(BCRYPT_KEY_HANDLE hKey,
-    const uint8_t* sigBytes, uint32_t sigLen,
-    uint64_t offBegin, uint64_t offEnd,
-    uint8_t type,
-    const wchar_t* threatName,
-    std::vector<uint8_t>& out)
+struct TestRecord {
+    const char* threatName;
+    const char* firstBytes;    // raw signature bytes
+    uint32_t    fbLen;
+    uint32_t    remLen;        // remainder length (0 = no remainder)
+    uint8_t     fileType;      // 0=PE, 1=Script
+    int64_t     offsetStart;
+    int64_t     offsetEnd;
+};
+
+static bool CreateDatabase(const wchar_t* privKeyFile,
+    const wchar_t* manifestFile,
+    const wchar_t* dataFile)
 {
-    AvDbFileRecord rec{};
-    memcpy(&rec.ObjectSignaturePrefix, sigBytes, 8);
-    rec.ObjectSignatureLength = sigLen;
-    Sha256(sigBytes, sigLen, rec.ObjectSignature);
-    rec.OffsetBegin = offBegin;
-    rec.OffsetEnd = offEnd;
-    rec.ObjectType = type;
-
-    // Подписываем все поля кроме AvRecordSignature
-    std::vector<uint8_t> toSign;
-    auto app = [&](const void* p, size_t n) {
-        auto b = (const uint8_t*)p;
-        toSign.insert(toSign.end(), b, b + n);
-        };
-    app(&rec.ObjectSignaturePrefix, 8);
-    app(&rec.ObjectSignatureLength, 4);
-    app(rec.ObjectSignature, 32);
-    app(&rec.OffsetBegin, 8);
-    app(&rec.OffsetEnd, 8);
-    app(&rec.ObjectType, 1);
-
-    if (!RsaSign(hKey, toSign.data(), toSign.size(), rec.AvRecordSignature))
-        return false;
-
-    // Имя угрозы
-    uint16_t nameLen = (uint16_t)(wcslen(threatName) * sizeof(wchar_t));
-    rec.ThreatNameLen = nameLen;
-
-    // Записываем в буфер
-    out.insert(out.end(), (uint8_t*)&rec, (uint8_t*)&rec + sizeof(rec));
-    out.insert(out.end(), (uint8_t*)threatName, (uint8_t*)threatName + nameLen);
-    return true;
-}
-
-// ---------------------------------------------------------------
-// Создать .avdb файл
-// ---------------------------------------------------------------
-static bool CreateAvDb(const wchar_t* privKeyFile,
-    const wchar_t* outFile)
-{
-    BCRYPT_KEY_HANDLE hKey = LoadPrivateKey(privKeyFile);
+    BCRYPT_KEY_HANDLE hKey = LoadPrivKey(privKeyFile);
     if (!hKey) { wprintf(L"Cannot load private key\n"); return false; }
 
-    // Тестовые сигнатуры
-    struct Entry {
-        const char* sig;
-        uint32_t       sigLen;
-        uint64_t       offBegin;
-        uint64_t       offEnd;
-        uint8_t        type;
-        const wchar_t* name;
-    } entries[] = {
-        { "EICAR-TEST-SIGNATURE-PE",  23, 0,  512,        0, L"Test.EICAR.PE"       },
-        { "MALWARE-SCRIPT-SIG",       18, 0,  UINT64_MAX, 1, L"Test.Malware.Script" },
-        { "VIRUS_BODY_MARKER",        17, 64, 1024,       0, L"Test.Virus.PE.Body"  },
+    // Test records
+    TestRecord records[] = {
+        {"Test.EICAR.PE",        "EICAR-TEST-SIGNATURE-PE", 23, 0, 0, 0, 512},
+        {"Test.Malware.Script",  "MALWARE-SCRIPT-SIG",      18, 0, 1, 0, INT64_MAX},
+        {"Test.Virus.PE.Body",   "VIRUS_BODY_MARKER",       17, 0, 0, 64, 1024},
     };
+    uint32_t recCount = (uint32_t)(sizeof(records) / sizeof(records[0]));
 
-    // Заголовок
-    AvDbFileHeader hdr{};
-    memcpy(hdr.Magic, AVDB_MAGIC, 4);
-    hdr.Version = AVDB_VERSION;
-    hdr.ReleaseDate = 20260511ULL;
-    hdr.RecordCount = (uint32_t)(sizeof(entries) / sizeof(entries[0]));
+    // -------------------------------------------------------
+    // Build data.bin
+    // -------------------------------------------------------
+    std::vector<uint8_t> dataBin;
+    WStr(dataBin, "DB-Zakharov");
+    W8(dataBin, 1);          // version
+    W32(dataBin, recCount);   // recordCount
 
-    std::vector<uint8_t> fileData;
-    auto app = [&](const void* p, size_t n) {
-        auto b = (const uint8_t*)p;
-        fileData.insert(fileData.end(), b, b + n);
-        };
-    app(&hdr, sizeof(hdr));
+    // Track each record's offset and raw bytes for manifest
+    struct RecordInfo { uint64_t offset; uint32_t length; };
+    std::vector<RecordInfo> recInfos;
 
-    // Записи
-    for (auto& e : entries)
+    for (auto& r : records)
     {
-        std::vector<uint8_t> recData;
-        if (!BuildRecord(hKey, (const uint8_t*)e.sig, e.sigLen,
-            e.offBegin, e.offEnd, e.type, e.name, recData))
-        {
-            wprintf(L"Failed to build record for %s\n", e.name);
-            BCryptDestroyKey(hKey);
-            return false;
-        }
-        fileData.insert(fileData.end(), recData.begin(), recData.end());
+        uint64_t recOffset = (uint64_t)dataBin.size() -
+            (uint64_t)(12 + 1 + 4); // relative to payload start
+        size_t startPos = dataBin.size();
+
+        // threatName
+        uint32_t nameLen = (uint32_t)strlen(r.threatName);
+        W32(dataBin, nameLen);
+        WBytes(dataBin, r.threatName, nameLen);
+
+        // firstBytes
+        W32(dataBin, r.fbLen);
+        WBytes(dataBin, r.firstBytes, r.fbLen);
+
+        // remainderHash (32 bytes, zeros for test)
+        uint8_t remHash[32]{};
+        WBytes(dataBin, remHash, 32);
+
+        // remainderLength
+        W32(dataBin, r.remLen);
+
+        // fileType
+        W8(dataBin, r.fileType);
+
+        // offsetStart, offsetEnd
+        W64s(dataBin, r.offsetStart);
+        W64s(dataBin, r.offsetEnd);
+
+        size_t endPos = dataBin.size();
+        recInfos.push_back({ (uint64_t)(startPos - (12 + 1 + 4)),
+                              (uint32_t)(endPos - startPos) });
     }
 
-    // Подпись всего файла
-    uint8_t dbSig[256]{};
-    RsaSign(hKey, fileData.data(), fileData.size(), dbSig);
-    fileData.insert(fileData.end(), dbSig, dbSig + 256);
+    // SHA-256 of data.bin
+    uint8_t dataSha[32]{};
+    Sha256(dataBin.data(), dataBin.size(), dataSha);
+
+    // -------------------------------------------------------
+    // Build manifest.bin (unsigned part first)
+    // -------------------------------------------------------
+    std::vector<uint8_t> manifest;
+    WStr(manifest, "MF-Zakharov");
+    W8(manifest, 1);           // version
+    W8(manifest, 1);           // exportType = full
+    W64s(manifest, (int64_t)GetTickCount64() + 1746921600000LL); // generatedAt
+    W64s(manifest, -1LL);       // since = -1 (full dump)
+    W32(manifest, recCount);    // recordCount
+    WBytes(manifest, dataSha, 32); // dataSha256
+
+    // entries
+    for (uint32_t i = 0; i < recCount; i++)
+    {
+        // UUID: 16 zero bytes (test)
+        uint8_t uuid[16]{};
+        uuid[15] = (uint8_t)(i + 1);
+        WBytes(manifest, uuid, 16);
+
+        W8(manifest, 1); // statusCode = ACTUAL
+        W64s(manifest, 1746921600000LL); // updatedAt
+        W64(manifest, recInfos[i].offset);  // dataOffset
+        W32(manifest, recInfos[i].length);  // dataLength
+
+        // Sign the record bytes from data.bin
+        const uint8_t* recData = dataBin.data() +
+            (12 + 1 + 4) + recInfos[i].offset; // header + offset
+        std::vector<uint8_t> recSig;
+        RsaSign(hKey, recData, recInfos[i].length, recSig);
+
+        W32(manifest, (uint32_t)recSig.size());
+        WBytes(manifest, recSig.data(), recSig.size());
+    }
+
+    // Sign the entire manifest (unsigned part)
+    std::vector<uint8_t> mSig;
+    RsaSign(hKey, manifest.data(), manifest.size(), mSig);
+    W32(manifest, (uint32_t)mSig.size());
+    WBytes(manifest, mSig.data(), mSig.size());
 
     BCryptDestroyKey(hKey);
 
-    // Запись в файл
-    std::ofstream f(outFile, std::ios::binary);
-    if (!f) { wprintf(L"Cannot write %s\n", outFile); return false; }
-    f.write((char*)fileData.data(), fileData.size());
-    wprintf(L"Created: %s (%zu bytes, %u records)\n",
-        outFile, fileData.size(), hdr.RecordCount);
+    // Write files
+    {
+        std::ofstream f(manifestFile, std::ios::binary);
+        f.write((char*)manifest.data(), manifest.size());
+    }
+    {
+        std::ofstream f(dataFile, std::ios::binary);
+        f.write((char*)dataBin.data(), dataBin.size());
+    }
+
+    wprintf(L"manifest.bin: %zu bytes\n", manifest.size());
+    wprintf(L"data.bin:     %zu bytes, %u records\n", dataBin.size(), recCount);
     return true;
 }
 
-// ---------------------------------------------------------------
-// main
 // ---------------------------------------------------------------
 int wmain(int argc, wchar_t* argv[])
 {
     if (argc < 2)
     {
         wprintf(L"Usage:\n");
-        wprintf(L"  AvDbTool.exe genkey                     -- generate key pair\n");
-        wprintf(L"  AvDbTool.exe create <privkey> <out.avdb> -- create database\n");
+        wprintf(L"  AvDbTool.exe genkey                               -- generate key pair\n");
+        wprintf(L"  AvDbTool.exe create <privkey> <manifest> <data>   -- create database\n");
         return 1;
     }
 
     if (wcscmp(argv[1], L"genkey") == 0)
-    {
         return GenerateKeyPair(L"avdb_private.key", L"avdb_public.key") ? 0 : 1;
-    }
-    else if (wcscmp(argv[1], L"create") == 0 && argc >= 4)
-    {
-        return CreateAvDb(argv[2], argv[3]) ? 0 : 1;
-    }
+
+    if (wcscmp(argv[1], L"create") == 0 && argc >= 5)
+        return CreateDatabase(argv[2], argv[3], argv[4]) ? 0 : 1;
 
     wprintf(L"Unknown command\n");
     return 1;

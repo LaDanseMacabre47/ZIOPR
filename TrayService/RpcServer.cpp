@@ -2,9 +2,11 @@
 #include "AuthManager.h"
 #include "LicenseManager.h"
 #include "AvDatabase.h"
+#include "AvDbUpdater.h"
 #include "ScanManager.h"
 #include <stdlib.h>
 #include <rpc.h>
+#include <string>
 
 #include "TrayService.h"
 #include "StopService.h"
@@ -20,33 +22,73 @@ static LONG CheckLicenseTicket()
     }
     return ERROR_SUCCESS;
 }
+static void TryDownloadDatabase(const wchar_t* accessToken)
+{
+    wchar_t exePath[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    wchar_t* slash = wcsrchr(exePath, L'\\');
+    if (slash) *(slash + 1) = L'\0';
 
+    if (AvDbUpdater::DownloadFullDatabase(accessToken, exePath))
+    {
+        // База скачана — перезагружаем
+        GetAvDatabaseManager().LoadOnStartup(exePath);
+    }
+}
+long RpcLogin(handle_t, const wchar_t* username, const wchar_t* password)
+{
+    LONG r = GetAuthManager().Login(username, password);
+    if (r == ERROR_SUCCESS)
+    {
+        // После логина скачиваем свежую базу с бэкенда
+        std::wstring tok = GetAuthManager().GetAccessToken();
+        TryDownloadDatabase(tok.c_str());
+    }
+    return r;
+}
 // Вспомогательная функция загрузки баз
 static void LoadAvDatabase()
 {
     if (GetAvDatabaseManager().IsLoaded()) return;
 
-    // Определяем путь к exe
     wchar_t exePath[MAX_PATH]{};
     GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-    // Убираем имя файла
     wchar_t* slash = wcsrchr(exePath, L'\\');
     if (slash) *(slash + 1) = L'\0';
 
-    std::wstring avdbPath = std::wstring(exePath) + L"bases.avdb";
-    std::wstring pubkPath = std::wstring(exePath) + L"avdb_public.key";
+    if (GetFileAttributesW((std::wstring(exePath) + L"avdb_public.key").c_str())
+        == INVALID_FILE_ATTRIBUTES)
+        AvDbUpdater::DownloadPublicKey(exePath);
 
-    // Пробуем загрузить из файла
-    if (!GetAvDatabaseManager().Load(avdbPath.c_str(), pubkPath.c_str()))
+    auto result = GetAvDatabaseManager().LoadOnStartup(exePath);
+
+    if (result == LoadResult::NeedsUpdate)
     {
-        // Файл не найден или подпись не прошла — используем хардкод
-        GetAvDatabaseManager().LoadHardcoded();
+        OutputDebugStringW(L"[AvDb] Manifest signature failed - forcing update\n");
+        std::wstring tok = GetAuthManager().GetAccessToken();
+        if (!tok.empty())
+            TryDownloadDatabase(tok.c_str());
+        else
+            OutputDebugStringW(L"[AvDb] No token available for forced update\n");
+        return;
+    }
+
+    const wchar_t* msg = L"AV database loaded OK";
+    if (result == LoadResult::RestoredFromBackup)
+        msg = L"AV database restored from backup";
+    else if (result == LoadResult::LoadedDefault)
+        msg = L"AV database loaded default (hardcoded)";
+
+    HANDLE hEvt = RegisterEventSourceW(nullptr, L"TrayService");
+    if (hEvt) {
+        ReportEventW(hEvt, EVENTLOG_INFORMATION_TYPE, 0, 0,
+            nullptr, 1, 0, &msg, nullptr);
+        DeregisterEventSource(hEvt);
     }
 }
-long RpcLogin(handle_t, const wchar_t* username, const wchar_t* password)
-{
-    return GetAuthManager().Login(username, password);
-}
+
+// Скачать базу после успешного логина
+
 
 void RpcLogout(handle_t)
 {
@@ -242,9 +284,6 @@ BOOL StartRpcServer()
     s_hStopEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (!s_hStopEvent) return FALSE;
 
-    // Загружаем базы при старте
-    LoadAvDatabase();
-
     RPC_STATUS status;
     status = RpcServerUseProtseqEpW(
         (RPC_WSTR)L"ncalrpc",
@@ -262,6 +301,32 @@ BOOL StartRpcServer()
         (RPC_WSTR)L"TrayServiceALPC",
         nullptr);
     RpcServerRegisterIf(StopService_v1_0_s_ifspec, nullptr, nullptr);
+
+    // Загружаем базы в фоне чтобы не блокировать старт сервиса
+    CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
+        // Первое обновление через 3 часа после старта
+        Sleep(3 * 60 * 60 * 1000);
+
+        while (true)
+        {
+            wchar_t exePath[MAX_PATH]{};
+            GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+            wchar_t* slash = wcsrchr(exePath, L'\\');
+            if (slash) *(slash + 1) = L'\0';
+
+            // Проверяем есть ли токен (пользователь залогинен)
+            std::wstring tok = GetAuthManager().GetAccessToken();
+            if (!tok.empty())
+            {
+                OutputDebugStringW(L"[AvDb] Periodic update starting...\n");
+                TryDownloadDatabase(tok.c_str());
+            }
+
+            // Следующая проверка через 3 часа
+            Sleep(3 * 60 * 60 * 1000);
+        }
+        return 0;
+        }, nullptr, 0, nullptr);
 
     status = RpcServerListen(1, RPC_C_LISTEN_MAX_CALLS_DEFAULT, TRUE);
     return (status == RPC_S_OK) ? TRUE : FALSE;

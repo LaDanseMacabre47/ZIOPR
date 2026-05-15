@@ -1,37 +1,35 @@
 #include "ScanEngine.h"
+#include <bcrypt.h>
 #include <cstring>
-#include <wincrypt.h>
-#pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "bcrypt.lib")
 
-// ---------------------------------------------------------------
-// SHA-256 через WinCrypt (локальна€ копи€)
-// ---------------------------------------------------------------
-static bool Sha256Local(const uint8_t* data, size_t len, uint8_t out[32])
+// SHA-256
+static bool Sha256(const uint8_t* data, size_t len, uint8_t out[32])
 {
-    HCRYPTPROV hProv = 0;
-    HCRYPTHASH hHash = 0;
+    BCRYPT_ALG_HANDLE  hAlg = nullptr;
+    BCRYPT_HASH_HANDLE hHash = nullptr;
     bool ok = false;
-
-    if (!CryptAcquireContextW(&hProv, nullptr, nullptr,
-        PROV_RSA_AES, CRYPT_VERIFYCONTEXT))
+    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0) != 0)
         return false;
-
-    if (CryptCreateHash(hProv, CALG_SHA_256, 0, 0, &hHash))
-    {
-        if (CryptHashData(hHash, data, (DWORD)len, 0))
-        {
-            DWORD hashLen = 32;
-            ok = CryptGetHashParam(hHash, HP_HASHVAL, out, &hashLen, 0) != 0;
-        }
-        CryptDestroyHash(hHash);
+    DWORD objSz = 0, cb = 0;
+    BCryptGetProperty(hAlg, BCRYPT_OBJECT_LENGTH, (PUCHAR)&objSz, sizeof(DWORD), &cb, 0);
+    std::vector<uint8_t> obj(objSz);
+    if (BCryptCreateHash(hAlg, &hHash, obj.data(), objSz, nullptr, 0, 0) == 0) {
+        BCryptHashData(hHash, (PUCHAR)data, (ULONG)len, 0);
+        ok = BCryptFinishHash(hHash, out, 32, 0) == 0;
+        BCryptDestroyHash(hHash);
     }
-    CryptReleaseContext(hProv, 0);
+    BCryptCloseAlgorithmProvider(hAlg, 0);
     return ok;
 }
 
 // ---------------------------------------------------------------
 // јлгоритм сканировани€ (п.3 требований)
-// O(n * log k) где n Ч размер файла, k Ч число уникальных префиксов
+// јдаптирован под новый формат AvRecord:
+//   - PrefixKey     = первые 8 байт firstBytes как uint64
+//   - FirstBytes    = сырые байты первой части сигнатуры
+//   - RemainderHash = SHA-256 хвоста
+//   - RemainderLength = длина хвоста
 // ---------------------------------------------------------------
 bool ScanEngine::Scan(const uint8_t* data,
     size_t         size,
@@ -47,83 +45,71 @@ bool ScanEngine::Scan(const uint8_t* data,
     // п.3.1 Ч позици€ считывани€ = 0
     size_t pos = 0;
 
-    while (pos + 8 <= size)
+    while (pos + 2 <= size)  // минимум 2 байта
     {
-        // п.3.2 Ч считать 8 байт и найти в красно-чЄрном дереве (std::map)
+        // п.3.2 Ч считать 8 байт (с нулевым дополнением) и найти в дереве
+        uint8_t prefixBuf[8]{};
+        size_t avail = std::min((size_t)8, size - pos);
+        memcpy(prefixBuf, data + pos, avail);
         uint64_t prefix = 0;
-        memcpy(&prefix, data + pos, 8);
+        memcpy(&prefix, prefixBuf, 8);
 
         auto it = db.find(prefix);
-        if (it == db.end())
-        {
-            // п.3.5 Ч префикс не найден, сдвиг на 1 байт
-            pos++;
-            continue;
-        }
+        if (it == db.end()) { pos++; continue; }
 
-        //  опируем список записей дл€ фильтрации
         std::vector<const AvRecord*> candidates;
         for (auto& rec : it->second)
             candidates.push_back(&rec);
 
-        // п.3.3 Ч проверки от лЄгкой к т€жЄлой
-
         // п.3.3.1 Ч проверка типа объекта
         {
-            std::vector<const AvRecord*> filtered;
-            for (auto* rec : candidates)
-                if (rec->Type == type)
-                    filtered.push_back(rec);
-            candidates = filtered;
+            std::vector<const AvRecord*> f;
+            for (auto* r : candidates)
+                if (r->Type == type) f.push_back(r);
+            candidates = f;
         }
-
         if (candidates.empty()) { pos++; continue; }
 
         // п.3.3.2 Ч проверка диапазона смещени€
         {
-            std::vector<const AvRecord*> filtered;
-            for (auto* rec : candidates)
+            std::vector<const AvRecord*> f;
+            for (auto* r : candidates)
             {
-                bool inRange = (pos >= rec->OffsetBegin) &&
-                    (rec->OffsetEnd == 0 || pos <= rec->OffsetEnd);
-                if (inRange) filtered.push_back(rec);
+                bool inRange = ((int64_t)pos >= r->OffsetStart) &&
+                    (r->OffsetEnd == 0 || r->OffsetEnd == INT64_MAX ||
+                        (int64_t)pos <= r->OffsetEnd);
+                if (inRange) f.push_back(r);
             }
-            candidates = filtered;
+            candidates = f;
         }
-
         if (candidates.empty()) { pos++; continue; }
 
-        // п.3.3.3 Ч считать дополнительные байты (ObjectSignatureLength - 8)
-        // п.3.3.4 Ч подсчитать SHA-256 от prefix + доп.байты
-        // п.3.3.5 Ч сравнить с ObjectSignature
+        // п.3.3.3-5 Ч считать firstBytes полностью, затем хвост, проверить хеш
         {
-            std::vector<const AvRecord*> filtered;
-            for (auto* rec : candidates)
+            std::vector<const AvRecord*> f;
+            for (auto* r : candidates)
             {
-                uint32_t extraLen = rec->ObjectSignatureLength > 8
-                    ? rec->ObjectSignatureLength - 8 : 0;
+                size_t fbLen = r->FirstBytes.size();
 
-                // ѕровер€ем что достаточно данных
-                if (pos + 8 + extraLen > size)
-                    continue;
+                // ѕровер€ем firstBytes полностью
+                if (pos + fbLen > size) continue;
+                if (memcmp(data + pos, r->FirstBytes.data(), fbLen) != 0) continue;
+                // ≈сли есть хвост Ч провер€ем SHA-256
+                if (r->RemainderLength > 0 && r->RemainderHashLen == 32)
+                {
+                    size_t remStart = pos + fbLen;
+                    if (remStart + r->RemainderLength > size) continue;
 
-                // Ѕуфер: prefix (8 байт) + extra
-                std::vector<uint8_t> buf(8 + extraLen);
-                memcpy(buf.data(), data + pos, 8 + extraLen);
+                    uint8_t hash[32]{};
+                    Sha256(data + remStart, r->RemainderLength, hash);
+                    if (memcmp(hash, r->RemainderHash, 32) != 0) continue;
+                }
 
-                // SHA-256
-                uint8_t hash[32]{};
-                if (!Sha256Local(buf.data(), buf.size(), hash))
-                    continue;
-
-                // —равниваем с ObjectSignature
-                if (memcmp(hash, rec->ObjectSignature, 32) == 0)
-                    filtered.push_back(rec);
+                f.push_back(r);
             }
-            candidates = filtered;
+            candidates = f;
         }
 
-        // п.3.4 Ч если список пуст Ч сдвиг
         if (candidates.empty()) { pos++; continue; }
 
         // п.3.6 Ч объект вредоносен

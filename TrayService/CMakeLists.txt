@@ -11,6 +11,7 @@ add_executable(TrayService
     "LicenseManager.cpp"  "LicenseManager.h"
     "HttpClient.cpp"      "HttpClient.h"
     "AvDatabase.cpp"      "AvDatabase.h"
+    "AvDbUpdater.cpp"     "AvDbUpdater.h"
     "ScanEngine.cpp"      "ScanEngine.h"
     "ScanManager.cpp"     "ScanManager.h"
     "ApiConfig.h"
